@@ -1,10 +1,110 @@
 import { useState } from 'react';
-import { Download, Upload, Database, HardDrive } from 'lucide-react';
+import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle } from 'lucide-react';
 import { t } from '../utils/translations';
 
 // ============================================================================
-// FUNCIONES DE EXPORTACIÓN
+// FUNCIONES DE IMPORTACIÓN
 // ============================================================================
+
+const importProvidersFromCSV = (csvContent) => {
+  try {
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    if (lines.length < 2) throw new Error('CSV vacío o sin encabezados');
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const providers = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      
+      const provider = {
+        id: parseInt(values[headers.indexOf('id')]) || Date.now() + i,
+        nombre: values[headers.indexOf('nombre')] || '',
+        contacto: values[headers.indexOf('contacto')] || '',
+        email: values[headers.indexOf('email')] || '',
+        whatsapp: values[headers.indexOf('whatsapp')] || '',
+      };
+
+      if (provider.nombre) providers.push(provider);
+    }
+
+    return providers;
+  } catch (error) {
+    throw new Error(`Error parsing CSV: ${error.message}`);
+  }
+};
+
+const importProductsFromCSV = (csvContent) => {
+  try {
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    if (lines.length < 2) throw new Error('CSV vacío o sin encabezados');
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const products = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+      
+      const product = {
+        id: parseInt(values[headers.indexOf('id')]) || Date.now() + i,
+        nombre: values[headers.indexOf('nombre')] || '',
+        proveedor: values[headers.indexOf('proveedor')] || '',
+        proveedorId: parseInt(values[headers.indexOf('proveedorid')]) || 0,
+        unidad: values[headers.indexOf('unidad')] || 'UNIDADES',
+        contenidoEmpaque: values[headers.indexOf('contenidoempaque')] || '',
+        costo: parseFloat(values[headers.indexOf('costo')]) || 0,
+        merma: parseFloat(values[headers.indexOf('merma')]) || 0,
+      };
+
+      if (product.nombre) products.push(product);
+    }
+
+    return products;
+  } catch (error) {
+    throw new Error(`Error parsing CSV: ${error.message}`);
+  }
+};
+
+const importProvidersFromJSON = (jsonContent) => {
+  try {
+    const data = JSON.parse(jsonContent);
+    const providers = Array.isArray(data) ? data : data.providers || data.data?.providers || [];
+    
+    if (!Array.isArray(providers)) throw new Error('Formato inválido');
+    
+    return providers.map(p => ({
+      id: p.id || Date.now(),
+      nombre: p.nombre || '',
+      contacto: p.contacto || '',
+      email: p.email || '',
+      whatsapp: p.whatsapp || '',
+    })).filter(p => p.nombre);
+  } catch (error) {
+    throw new Error(`Error parsing JSON: ${error.message}`);
+  }
+};
+
+const importProductsFromJSON = (jsonContent) => {
+  try {
+    const data = JSON.parse(jsonContent);
+    const products = Array.isArray(data) ? data : data.products || data.data?.products || [];
+    
+    if (!Array.isArray(products)) throw new Error('Formato inválido');
+    
+    return products.map(p => ({
+      id: p.id || Date.now(),
+      nombre: p.nombre || '',
+      proveedor: p.proveedor || '',
+      proveedorId: p.proveedorId || 0,
+      unidad: p.unidad || 'UNIDADES',
+      contenidoEmpaque: p.contenidoEmpaque || '',
+      costo: p.costo || 0,
+      merma: p.merma || 0,
+    })).filter(p => p.nombre);
+  } catch (error) {
+    throw new Error(`Error parsing JSON: ${error.message}`);
+  }
+};
 
 const exportToCSV = (data, filename) => {
   try {
@@ -122,6 +222,8 @@ export default function DatabasePage({
   setCompanyData,
 }) {
   const [importing, setImporting] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(0);
+  const [showResetModal, setShowResetModal] = useState(false);
 
   // Handlers de Exportación
   const handleExportProviders = () => {
@@ -182,7 +284,6 @@ export default function DatabasePage({
     });
   };
 
-  // Handler de Importación
   const handleImportFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -231,6 +332,144 @@ export default function DatabasePage({
 
     reader.readAsText(file);
   };
+
+  // Handler para importar Proveedores y Productos masivamente
+  const handleImportMassive = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      try {
+        const content = event.target?.result;
+        if (!content) throw new Error('Archivo vacío');
+
+        const isJSON = file.name.endsWith('.json');
+        const isCSV = file.name.endsWith('.csv');
+
+        if (!isJSON && !isCSV) {
+          throw new Error('Solo se aceptan archivos .json o .csv');
+        }
+
+        const fileName = file.name.toLowerCase();
+        let importedProviders = [];
+        let importedProducts = [];
+
+        if (isJSON) {
+          if (fileName.includes('proveedor')) {
+            importedProviders = importProvidersFromJSON(content);
+          } else if (fileName.includes('producto')) {
+            importedProducts = importProductsFromJSON(content);
+          } else {
+            throw new Error('El nombre del archivo debe contener "proveedor" o "producto"');
+          }
+        } else if (isCSV) {
+          if (fileName.includes('proveedor')) {
+            importedProviders = importProvidersFromCSV(content);
+          } else if (fileName.includes('producto')) {
+            importedProducts = importProductsFromCSV(content);
+          } else {
+            throw new Error('El nombre del archivo debe contener "proveedor" o "producto"');
+          }
+        }
+
+        if (importedProviders.length > 0) {
+          const updated = [...(providersData || []), ...importedProviders];
+          setProvidersData(updated);
+          localStorage.setItem('inventariox_providers', JSON.stringify(updated));
+          alert(`✅ ${importedProviders.length} proveedores importados`);
+        } else if (importedProducts.length > 0) {
+          const updated = [...(productsData || []), ...importedProducts];
+          setProductsData(updated);
+          localStorage.setItem('inventariox_products', JSON.stringify(updated));
+          alert(`✅ ${importedProducts.length} productos importados`);
+        } else {
+          throw new Error('No se encontraron datos válidos en el archivo');
+        }
+
+        window.location.reload();
+      } catch (error) {
+        console.error('Massive import error:', error);
+        alert(`❌ Error: ${error.message}`);
+      } finally {
+        setImporting(false);
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  // Handler para Respaldo Rápido
+  const handleQuickBackup = () => {
+    const backup = {
+      exportDate: new Date().toISOString(),
+      version: '1.0.0',
+      data: {
+        company: companyData || {},
+        providers: providersData || [],
+        products: productsData || [],
+        stock: stockData || [],
+        orders: ordersData || [],
+      },
+    };
+
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `respaldo-rapido-${new Date().toISOString().split('T')[0]}.json`);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Handler para resetear sistema
+  const handleReset = () => {
+    if (resetConfirm === 0) {
+      setResetConfirm(1);
+      return;
+    }
+
+    if (resetConfirm === 1) {
+      setResetConfirm(2);
+      return;
+    }
+
+    if (resetConfirm === 2) {
+      try {
+        // Limpiar todo el localStorage
+        localStorage.clear();
+
+        // Resetear estados
+        setCompanyData({
+          nombreEmpresa: 'MI EMPRESA',
+          nitRut: '12.345.678-9',
+          direccion: 'Calle Principal 123, Ciudad',
+        });
+        setProvidersData([]);
+        setProductsData([]);
+        setStockData([]);
+        setOrdersData([]);
+
+        alert('✅ Sistema restablecido completamente. Recargando...');
+        setTimeout(() => window.location.reload(), 1500);
+      } catch (error) {
+        console.error('Reset error:', error);
+        alert('❌ Error al restablecer el sistema');
+      }
+    }
+  };
+
+  const resetButtonText = 
+    resetConfirm === 0 ? '🗑️ Restablecer Sistema' :
+    resetConfirm === 1 ? '⚠️ ¿Confirmas?' :
+    '🔴 ÚLTIMO AVISO - Click para confirmar';;
 
   const recordCount = {
     providers: (providersData || []).length,
@@ -397,6 +636,153 @@ export default function DatabasePage({
           <li>✓ El archivo JSON contiene toda tu información en un formato portable</li>
           <li>✓ Si cambias de dispositivo, solo necesitas cargar el archivo JSON</li>
         </ul>
+      </div>
+
+      {/* SECCIÓN 3: HERRAMIENTAS AVANZADAS */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+        {/* Importar Masivamente */}
+        <div className="bg-gray-900 dark:bg-gray-900 light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <Upload className="w-5 h-5" style={{ color: '#206DDA' }} />
+            <h2 className="text-xl font-semibold">Importar Masivamente</h2>
+          </div>
+
+          <p className="text-gray-400 light-mode:text-gray-600 text-sm mb-4">
+            Carga múltiples proveedores o productos desde CSV o JSON
+          </p>
+
+          <div className="relative">
+            <input
+              type="file"
+              accept=".json,.csv"
+              onChange={handleImportMassive}
+              disabled={importing}
+              className="hidden"
+              id="massive-import-input"
+            />
+            <label
+              htmlFor="massive-import-input"
+              className={`block w-full px-4 py-6 rounded-lg border-2 border-dashed transition-colors cursor-pointer text-center ${
+                importing ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+              style={{
+                borderColor: '#206DDA',
+                backgroundColor: 'rgba(32, 109, 218, 0.05)',
+              }}
+            >
+              <div className="flex flex-col items-center gap-2">
+                <Upload className="w-8 h-8" style={{ color: '#206DDA' }} />
+                <div>
+                  <p className="font-medium text-white light-mode:text-gray-900">
+                    {importing ? 'Importando...' : 'Selecciona archivo'}
+                  </p>
+                  <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-1">
+                    CSV o JSON (nombra como "proveedores_..." o "productos_...")
+                  </p>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <div className="mt-4 p-3 rounded-lg" style={{ backgroundColor: 'rgba(32, 109, 218, 0.1)' }}>
+            <p className="text-xs text-gray-400 light-mode:text-gray-600">
+              <span className="block">📋 Formatos soportados:</span>
+              <span className="block mt-1">• CSV: id, nombre, proveedor, contacto, email, whatsapp</span>
+              <span className="block">• JSON: Array de objetos con los mismos campos</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Respaldo Rápido */}
+        <div className="bg-gray-900 dark:bg-gray-900 light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
+          <div className="flex items-center gap-2 mb-4">
+            <HardDrive className="w-5 h-5" style={{ color: '#206DDA' }} />
+            <h2 className="text-xl font-semibold">Respaldo Rápido</h2>
+          </div>
+
+          <p className="text-gray-400 light-mode:text-gray-600 text-sm mb-4">
+            Descarga un backup completo con un solo click
+          </p>
+
+          <button
+            onClick={handleQuickBackup}
+            className="w-full px-4 py-4 rounded-lg text-white font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 text-lg"
+            style={{
+              background: 'linear-gradient(135deg, #206DDA 0%, #0e4ba9 100%)',
+            }}
+            onMouseEnter={(e) => (e.target.style.opacity = '0.9')}
+            onMouseLeave={(e) => (e.target.style.opacity = '1')}
+          >
+            <HardDrive className="w-5 h-5" />
+            Descargar Respaldo Ahora
+          </button>
+
+          <div className="mt-4 p-3 rounded-lg" style={{ backgroundColor: 'rgba(32, 109, 218, 0.1)' }}>
+            <p className="text-xs text-gray-400 light-mode:text-gray-600">
+              <span className="block">✓ Incluye: Proveedores, Productos, Inventario, Pedidos</span>
+              <span className="block mt-1">✓ Formato JSON portátil</span>
+              <span className="block">✓ Recomendado diariamente</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* SECCIÓN 4: RESTABLECER SISTEMA */}
+      <div className="bg-red-900/20 border border-red-700/40 rounded-lg p-6 shadow-lg">
+        <div className="flex items-center gap-2 mb-4">
+          <AlertTriangle className="w-5 h-5 text-red-500" />
+          <h2 className="text-xl font-semibold text-red-400">Zona de Peligro</h2>
+        </div>
+
+        <p className="text-gray-400 light-mode:text-gray-600 text-sm mb-4">
+          Esta acción eliminará TODOS los datos del sistema. Asegúrate de hacer un respaldo primero.
+        </p>
+
+        <div className="bg-red-950/30 border border-red-700/30 rounded-lg p-4 mb-4">
+          <p className="text-xs text-red-400">
+            ⚠️ <strong>ADVERTENCIA:</strong> Esta acción no se puede deshacer. Se eliminarán:
+          </p>
+          <ul className="text-xs text-red-300 mt-2 ml-4 space-y-1">
+            <li>• Todos los proveedores</li>
+            <li>• Todos los productos</li>
+            <li>• Todo el inventario</li>
+            <li>• Todos los pedidos</li>
+            <li>• Configuración de empresa</li>
+          </ul>
+        </div>
+
+        <button
+          onClick={handleReset}
+          className={`w-full px-4 py-3 rounded-lg text-white font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 ${
+            resetConfirm === 0 ? 'hover:from-red-700' : resetConfirm === 1 ? 'from-orange-600 to-orange-700' : 'from-red-700 to-red-900'
+          }`}
+          style={{
+            background:
+              resetConfirm === 0
+                ? 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)'
+                : resetConfirm === 1
+                ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
+                : 'linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%)',
+          }}
+          onMouseEnter={(e) => (e.target.style.opacity = '0.9')}
+          onMouseLeave={(e) => (e.target.style.opacity = '1')}
+        >
+          <Trash2 className="w-5 h-5" />
+          {resetButtonText}
+        </button>
+
+        {resetConfirm > 0 && (
+          <p className="text-xs text-red-400 mt-3 text-center font-semibold">
+            Confirmación: {resetConfirm}/2
+          </p>
+        )}
+
+        <button
+          onClick={() => setResetConfirm(0)}
+          className="w-full mt-3 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors"
+        >
+          Cancelar
+        </button>
       </div>
     </div>
   );
