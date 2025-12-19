@@ -272,11 +272,11 @@ export default function Orders({ language = 'es', productsData = [], providers =
     ];
 
     return (
-      <div className="min-h-screen bg-[#111827] light-mode:bg-gray-50 p-6 transition-colors duration-300">
+      <div className="min-h-screen bg-[#111827] light-mode:bg-gray-50 p-4 sm:p-6 transition-colors duration-300">
         <div className="max-w-7xl mx-auto">
           {/* Encabezado */}
-          <div className="mb-8">
-            <h1 className="text-2xl font-black mb-2 bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-xl sm:text-2xl font-black mb-1 sm:mb-2 bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent">
               {t(language, 'pedidos')}
             </h1>
             <p className="text-gray-400 light-mode:text-gray-600">{t(language, 'gestionPedidos')}</p>

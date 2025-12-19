@@ -30,7 +30,7 @@ body {
 }
 
 .metric-card {
-  @apply bg-gray-800 rounded-lg p-6 shadow-md border border-gray-700;
+  @apply bg-gray-800 rounded-lg p-4 sm:p-6 shadow-md border border-gray-700;
 }
 
 .table-row-hover {
@@ -133,4 +133,58 @@ body {
 
 .light-mode .badge.error {
   @apply bg-red-100 text-red-800;
+}
+
+/* Optimizaciones Mobile-First */
+@media (max-width: 768px) {
+  body {
+    @apply text-sm;
+  }
+  
+  /* Prevenir zoom no deseado en inputs */
+  input,
+  select,
+  textarea {
+    @apply text-base;
+  }
+  
+  /* Mejorar touch targets en mobile */
+  button {
+    @apply min-h-[44px];
+  }
+  
+  /* Tablas responsive */
+  table {
+    @apply text-xs;
+  }
+  
+  table th {
+    @apply px-3 py-2;
+  }
+  
+  table td {
+    @apply px-3 py-2;
+  }
+}
+
+/* Touch-friendly sizing */
+button {
+  @apply transition-colors duration-200;
+}
+
+button:active {
+  @apply opacity-75;
+}
+
+/* Input y form improvements */
+input,
+select,
+textarea {
+  @apply text-base;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  @apply opacity-50 cursor-not-allowed;
 }

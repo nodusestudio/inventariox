@@ -176,13 +176,13 @@ export default function Inventory({ productsData: initialData = [], setProductsD
   ];
 
   return (
-    <div className="px-4 md:px-8 py-6 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
+    <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-6 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
       {/* Título */}
-      <div className="mb-8">
-        <h1 className="text-white light-mode:text-gray-900 font-black text-2xl md:text-3xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-2">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-white light-mode:text-gray-900 font-black text-xl sm:text-2xl md:text-3xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-1 sm:mb-2">
           {language === 'es' ? 'Productos' : 'Products'}
         </h1>
-        <p className="text-gray-400 light-mode:text-gray-600 text-sm md:text-base">
+        <p className="text-gray-400 light-mode:text-gray-600 text-xs sm:text-sm md:text-base">
           {language === 'es' ? 'Crea y administra la base de datos de productos' : 'Create and manage the product database'}
         </p>
       </div>

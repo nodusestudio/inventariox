@@ -56,7 +56,7 @@ export default function TableContainer({ columns, data, onRowClick, isRowAlert }
       </div>
 
       {/* Cards Mobile */}
-      <div className="md:hidden space-y-3 p-4">
+      <div className="md:hidden space-y-2 p-3">
         {data.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-400 light-mode:text-gray-500">No hay datos disponibles</p>
@@ -68,19 +68,19 @@ export default function TableContainer({ columns, data, onRowClick, isRowAlert }
               <div
                 key={idx}
                 onClick={() => onRowClick?.(row)}
-                className={`p-4 rounded-lg border cursor-pointer transition-all duration-300 ${
+                className={`p-3 rounded-lg border cursor-pointer transition-all duration-300 ${
                   hasAlert
                     ? 'bg-red-950/30 light-mode:bg-red-100/30 border-red-800 light-mode:border-red-300'
                     : 'bg-gray-700 light-mode:bg-gray-100 border-gray-600 light-mode:border-gray-300 hover:bg-gray-600 light-mode:hover:bg-gray-200'
                 }`}
               >
-                <div className="grid grid-cols-1 gap-2">
-                  {columns.map((column) => (
+                <div className="grid grid-cols-1 gap-1">
+                  {columns.slice(0, 3).map((column) => (
                     <div key={column.key} className="flex justify-between items-start">
                       <span className="text-xs font-semibold text-gray-400 light-mode:text-gray-600 uppercase">
                         {column.label}
                       </span>
-                      <span className="text-sm font-semibold text-gray-200 light-mode:text-gray-900 text-right ml-2">
+                      <span className="text-xs text-gray-200 light-mode:text-gray-900 text-right">
                         {column.render ? column.render(row[column.key], row) : row[column.key]}
                       </span>
                     </div>

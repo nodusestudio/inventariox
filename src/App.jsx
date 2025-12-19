@@ -109,6 +109,14 @@ export default function App() {
     }
   }, [theme]);
 
+  // Prevenir zoom no deseado en inputs de mobile
+  useEffect(() => {
+    const inputs = document.querySelectorAll('input, select, textarea');
+    inputs.forEach(input => {
+      input.style.fontSize = '16px';
+    });
+  }, []);
+
   // Estado de productos con localStorage
   const [productsData, setProductsDataState] = useState(() => {
     const saved = localStorage.getItem('inventariox_products');
@@ -154,7 +162,9 @@ export default function App() {
   return (
     <div className={`${theme === 'light' ? 'light-mode bg-gray-50 text-gray-900' : 'dark-mode bg-dark-bg text-white'} min-h-screen w-full transition-colors duration-300`}>
       <Navbar activeTab={activeTab} onTabChange={setActiveTab} language={language} />
-      {renderContent()}
+      <div className="w-full max-w-7xl mx-auto px-0">
+        {renderContent()}
+      </div>
     </div>
   );
 }

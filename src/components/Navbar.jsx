@@ -23,7 +23,7 @@ export default function Navbar({ activeTab, onTabChange, language = 'es' }) {
 
   return (
     <nav className="sticky top-0 bg-gray-900 border-b border-gray-700 shadow-lg z-50 dark-mode light-mode:bg-white light-mode:border-gray-300">
-      <div className="w-full px-4 md:px-8 py-4">
+      <div className="w-full px-4 sm:px-6 md:px-8 py-3 sm:py-4">
         <div className="flex items-center justify-between">
           {/* Logo Component */}
           <Logo size="md" />

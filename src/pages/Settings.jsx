@@ -70,12 +70,12 @@ export default function Settings({ theme, setTheme, language, setLanguage }) {
   };
 
   return (
-    <div className="min-h-screen bg-dark-bg light-mode:bg-gray-50 p-6 transition-colors duration-300">
+    <div className="min-h-screen bg-dark-bg light-mode:bg-gray-50 p-4 sm:p-6 transition-colors duration-300">
       <div className="max-w-4xl mx-auto">
         {/* Encabezado */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-white light-mode:text-gray-900">{t(language, 'configuracionAplicacion')}</h1>
-          <p className="text-gray-400 light-mode:text-gray-600">{t(language, 'administraInformacion')}</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 text-white light-mode:text-gray-900">{t(language, 'configuracionAplicacion')}</h1>
+          <p className="text-sm sm:text-base text-gray-400 light-mode:text-gray-600">{t(language, 'administraInformacion')}</p>
         </div>
 
         {/* Mensaje de éxito */}

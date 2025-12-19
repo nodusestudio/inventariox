@@ -17,16 +17,16 @@ export default function Dashboard({ inventoryData, language = 'es' }) {
   ];
 
   return (
-    <div className="min-h-screen bg-dark-bg light-mode:bg-gray-50 p-6 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-dark-bg light-mode:bg-gray-50 p-4 sm:p-6 transition-colors duration-300">
+      <div>
         {/* Encabezado */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-white light-mode:text-gray-900">{t(language, 'panel')}</h1>
-          <p className="text-gray-400 light-mode:text-gray-600">{t(language, 'resumenGeneral')}</p>
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 text-white light-mode:text-gray-900">{t(language, 'panel')}</h1>
+          <p className="text-sm sm:text-base text-gray-400 light-mode:text-gray-600">{t(language, 'resumenGeneral')}</p>
         </div>
 
         {/* Tarjetas de Métricas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <MetricCard
             title={t(language, 'totalProductos')}
             value={totalProducts}
@@ -52,7 +52,7 @@ export default function Dashboard({ inventoryData, language = 'es' }) {
 
         {/* Tabla de Últimos Productos */}
         <div>
-          <h2 className="text-2xl font-bold mb-4 text-white light-mode:text-gray-900">{t(language, 'movimientosRecientes')}</h2>
+          <h2 className="text-xl sm:text-2xl font-bold mb-4 text-white light-mode:text-gray-900">{t(language, 'movimientosRecientes')}</h2>
           <TableContainer
             columns={columns}
             data={inventoryData.slice(0, 5)}
