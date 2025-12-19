@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Settings as SettingsIcon, Menu, X } from 'lucide-react';
+import { Settings as SettingsIcon, Menu, X, Database } from 'lucide-react';
 import Logo from './Logo';
 import { t } from '../utils/translations';
 
@@ -11,10 +11,11 @@ export default function Navbar({ activeTab, onTabChange, language = 'es' }) {
     Productos: language === 'es' ? 'Productos' : 'Products',
     Inventario: language === 'es' ? 'Inventario' : 'Inventory',
     Pedidos: t(language, 'pedidos'),
+    'Base de Datos': language === 'es' ? 'Base de Datos' : 'Database',
     Configuración: t(language, 'configuracion'),
   };
 
-  const tabs = ['Panel', 'Proveedores', 'Productos', 'Inventario', 'Pedidos', 'Configuración'];
+  const tabs = ['Panel', 'Proveedores', 'Productos', 'Inventario', 'Pedidos', 'Base de Datos', 'Configuración'];
 
   const handleTabChange = (tab) => {
     onTabChange(tab);
@@ -41,6 +42,7 @@ export default function Navbar({ activeTab, onTabChange, language = 'es' }) {
                 }`}
               >
                 {tab === 'Configuración' && <SettingsIcon className="w-4 h-4" />}
+                {tab === 'Base de Datos' && <Database className="w-4 h-4" />}
                 {tabNames[tab]}
               </button>
             ))}
@@ -80,8 +82,7 @@ export default function Navbar({ activeTab, onTabChange, language = 'es' }) {
                       : 'tab-inactive light-mode:text-gray-600 light-mode:hover:text-gray-900'
                   }`}
                 >
-                  {tab === 'Configuración' && <SettingsIcon className="w-4 h-4" />}
-                  {tabNames[tab]}
+                  {tab === 'Configuración' && <SettingsIcon className="w-4 h-4" />}                  {tab === 'Base de Datos' && <Database className="w-4 h-4" />}                  {tabNames[tab]}
                 </button>
               ))}
             </div>

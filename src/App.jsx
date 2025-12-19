@@ -6,6 +6,7 @@ import Stock from './pages/Stock';
 import Providers from './pages/Providers';
 import Orders from './pages/Orders';
 import Settings from './pages/Settings';
+import DatabasePage from './pages/Database';
 
 // ============================================================================
 // DATOS POR DEFECTO
@@ -380,6 +381,21 @@ export default function App() {
               setOrdersData={setOrdersData}
             />
           );
+        case 'Base de Datos':
+          return (
+            <DatabasePage
+              providersData={providersData || []}
+              productsData={productsData || []}
+              stockData={stockData || []}
+              ordersData={ordersData || []}
+              companyData={companyData || DEFAULT_COMPANY}
+              setProvidersData={setProvidersData}
+              setProductsData={setProductsData}
+              setStockData={setStockData}
+              setOrdersData={setOrdersData}
+              setCompanyData={setCompanyData}
+            />
+          );
         case 'Configuración':
           return (
             <Settings
@@ -389,6 +405,10 @@ export default function App() {
               setLanguage={setLanguage}
               companyData={companyData || DEFAULT_COMPANY}
               setCompanyData={setCompanyData}
+              providersData={providersData || []}
+              productsData={productsData || []}
+              stockData={stockData || []}
+              ordersData={ordersData || []}
             />
           );
         default:
