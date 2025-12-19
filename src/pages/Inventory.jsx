@@ -176,25 +176,25 @@ export default function Inventory({ productsData: initialData = [], setProductsD
   ];
 
   return (
-    <div className="p-8 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
+    <div className="px-4 md:px-8 py-6 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
       {/* Título */}
       <div className="mb-8">
-        <h1 className="text-white light-mode:text-gray-900 font-black text-2xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-2">
+        <h1 className="text-white light-mode:text-gray-900 font-black text-2xl md:text-3xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-2">
           {language === 'es' ? 'Productos' : 'Products'}
         </h1>
-        <p className="text-gray-400 light-mode:text-gray-600">
+        <p className="text-gray-400 light-mode:text-gray-600 text-sm md:text-base">
           {language === 'es' ? 'Crea y administra la base de datos de productos' : 'Create and manage the product database'}
         </p>
       </div>
 
       {/* Barra de búsqueda y filtros */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
         {/* Filtro por Proveedor */}
-        <div className="w-64 relative">
+        <div className="w-full md:w-64 relative">
           <select
             value={selectedProviderFilter}
             onChange={(e) => setSelectedProviderFilter(e.target.value)}
-            className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300 appearance-none cursor-pointer"
+            className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300 appearance-none cursor-pointer"
           >
             <option value="">{language === 'es' ? 'Todos los proveedores' : 'All providers'}</option>
             {providers.map(provider => (
@@ -218,14 +218,14 @@ export default function Inventory({ productsData: initialData = [], setProductsD
             placeholder={language === 'es' ? 'Buscar producto...' : 'Search product...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300"
+            className="w-full pl-12 pr-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300"
           />
         </div>
 
         {/* Botón Agregar Producto */}
         <button
           onClick={handleAddProduct}
-          className="flex items-center gap-2 px-6 py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300"
+          className="flex items-center justify-center md:justify-start gap-2 w-full md:w-auto px-4 md:px-6 py-3 md:py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300 text-base md:text-sm"
         >
           <Plus className="w-5 h-5" />
           {language === 'es' ? 'Agregar Producto' : 'Add Product'}
@@ -252,9 +252,9 @@ export default function Inventory({ productsData: initialData = [], setProductsD
 
       {/* Modal para agregar/editar */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-[#111827] light-mode:bg-white rounded-lg p-8 max-w-2xl w-full mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111827] light-mode:bg-white rounded-lg w-full max-h-[90vh] overflow-y-auto max-w-2xl shadow-xl md:rounded-lg">
+            <div className="flex justify-between items-center p-6 sticky top-0 bg-[#111827] light-mode:bg-white border-b border-gray-700 light-mode:border-gray-200">
               <h2 className="text-white light-mode:text-gray-900 font-bold text-xl">
                 {isEditing 
                   ? (language === 'es' ? 'Editar Producto' : 'Edit Product')
@@ -270,11 +270,11 @@ export default function Inventory({ productsData: initialData = [], setProductsD
             </div>
 
             {/* Formulario */}
-            <div className="space-y-4">
+            <div className="p-6 space-y-4">
               {/* Primera fila - Nombre y Proveedor */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                  <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                     {language === 'es' ? 'Nombre del Producto' : 'Product Name'} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -282,20 +282,20 @@ export default function Inventory({ productsData: initialData = [], setProductsD
                     name="nombre"
                     value={formData.nombre}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                     placeholder={language === 'es' ? 'Ej: Aceite de Oliva' : 'E.g.: Olive Oil'}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                  <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                     {language === 'es' ? 'Proveedor' : 'Provider'} <span className="text-red-500">*</span>
                   </label>
                   <select
                     name="proveedor"
                     value={formData.proveedor}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                   >
                     <option value="">{language === 'es' ? 'Seleccionar proveedor' : 'Select provider'}</option>
                     {providers && providers.length > 0 ? (
@@ -314,7 +314,7 @@ export default function Inventory({ productsData: initialData = [], setProductsD
               {/* Segunda fila - Unidad y Contenido/Empaque */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                  <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                     {language === 'es' ? 'Unidad de Medida' : 'Unit of Measure'} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -322,13 +322,13 @@ export default function Inventory({ productsData: initialData = [], setProductsD
                     name="unidad"
                     value={formData.unidad}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                     placeholder={language === 'es' ? 'Ej: Litros, Gramos, Unidades' : 'E.g.: Liters, Grams, Units'}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                  <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                     {language === 'es' ? 'Contenido por Empaque' : 'Content per Package'} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -336,7 +336,7 @@ export default function Inventory({ productsData: initialData = [], setProductsD
                     name="contenidoEmpaque"
                     value={formData.contenidoEmpaque}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                     placeholder={language === 'es' ? 'Ej: 1000g, 500ml' : 'E.g.: 1000g, 500ml'}
                   />
                 </div>
@@ -345,7 +345,7 @@ export default function Inventory({ productsData: initialData = [], setProductsD
               {/* Tercera fila - Costo Unitario y Merma */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                  <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                     {language === 'es' ? 'Costo Unitario' : 'Unit Cost'} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -354,13 +354,13 @@ export default function Inventory({ productsData: initialData = [], setProductsD
                     value={formData.costo}
                     onChange={handleInputChange}
                     step="1000"
-                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                     placeholder="0"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                  <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                     {language === 'es' ? 'Merma (%)' : 'Loss (%)'} <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -371,7 +371,7 @@ export default function Inventory({ productsData: initialData = [], setProductsD
                     step="0.1"
                     min="0"
                     max="99.9"
-                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                    className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                     placeholder="0.0"
                   />
                 </div>
@@ -379,16 +379,16 @@ export default function Inventory({ productsData: initialData = [], setProductsD
             </div>
 
             {/* Botones */}
-            <div className="mt-6 flex gap-3 justify-end">
+            <div className="p-6 border-t border-gray-700 light-mode:border-gray-200 flex flex-col md:flex-row gap-3 justify-end">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors duration-300"
+                className="w-full md:w-auto px-4 py-3 md:py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors duration-300 text-base md:text-sm font-semibold"
               >
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
               </button>
               <button
                 onClick={handleSaveProduct}
-                className="px-4 py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300"
+                className="w-full md:w-auto px-4 py-3 md:py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300 text-base md:text-sm"
               >
                 {language === 'es' ? 'Guardar' : 'Save'}
               </button>

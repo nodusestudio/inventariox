@@ -321,25 +321,25 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
   ];
 
   return (
-    <div className="p-8 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
+    <div className="px-4 md:px-8 py-6 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
       {/* Título */}
       <div className="mb-8">
-        <h1 className="text-white light-mode:text-gray-900 font-black text-2xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-2">
+        <h1 className="text-white light-mode:text-gray-900 font-black text-2xl md:text-3xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-2">
           {language === 'es' ? 'Inventario' : 'Inventory'}
         </h1>
-        <p className="text-gray-400 light-mode:text-gray-600">
+        <p className="text-gray-400 light-mode:text-gray-600 text-sm md:text-base">
           {language === 'es' ? 'Gestiona el stock de productos con alertas automáticas' : 'Manage product stock with automatic alerts'}
         </p>
       </div>
 
       {/* Barra de búsqueda y filtros */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
         {/* Filtro por Proveedor */}
-        <div className="w-64 relative">
+        <div className="w-full md:w-64 relative">
           <select
             value={selectedProviderFilter}
             onChange={(e) => setSelectedProviderFilter(e.target.value)}
-            className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300 appearance-none cursor-pointer"
+            className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300 appearance-none cursor-pointer"
           >
             <option value="">{language === 'es' ? 'Todos los proveedores' : 'All providers'}</option>
             {providers.map(provider => (
@@ -363,14 +363,17 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
             placeholder={language === 'es' ? 'Buscar producto...' : 'Search product...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300"
+            className="w-full pl-12 pr-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors duration-300"
           />
         </div>
+      </div>
 
+      {/* Botones de acción - Responsivos */}
+      <div className="flex flex-col md:flex-row gap-3 mb-6">
         {/* Botón Cargar Stock */}
         <button
           onClick={handleAddStock}
-          className="flex items-center gap-2 px-6 py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300"
+          className="flex items-center justify-center md:justify-start gap-2 w-full md:w-auto px-4 md:px-6 py-3 md:py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300 text-base md:text-sm"
         >
           <Plus className="w-5 h-5" />
           {language === 'es' ? 'Cargar Stock' : 'Load Stock'}
@@ -379,7 +382,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
         {/* Botón Realizar Inventario */}
         <button
           onClick={() => setShowInventoryModal(true)}
-          className="flex items-center gap-2 px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors duration-300"
+          className="flex items-center justify-center md:justify-start gap-2 w-full md:w-auto px-4 md:px-6 py-3 md:py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors duration-300 text-base md:text-sm"
         >
           <Clipboard className="w-5 h-5" />
           {language === 'es' ? 'Realizar Inventario' : 'Physical Count'}
@@ -388,7 +391,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
         {/* Botón Historial */}
         <button
           onClick={() => setShowHistory(true)}
-          className="flex items-center gap-2 px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors duration-300"
+          className="flex items-center justify-center md:justify-start gap-2 w-full md:w-auto px-4 md:px-6 py-3 md:py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors duration-300 text-base md:text-sm"
         >
           <AlertCircle className="w-5 h-5" />
           {language === 'es' ? 'Historial' : 'History'}
@@ -420,9 +423,9 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
 
       {/* Modal para agregar/editar */}
       {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-[#111827] light-mode:bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl">
-            <div className="flex justify-between items-center mb-6">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#111827] light-mode:bg-white rounded-lg w-full max-h-[90vh] overflow-y-auto max-w-md shadow-xl md:rounded-lg">
+            <div className="flex justify-between items-center p-6 sticky top-0 bg-[#111827] light-mode:bg-white border-b border-gray-700 light-mode:border-gray-200">
               <h2 className="text-white light-mode:text-gray-900 font-bold text-xl">
                 {isEditing 
                   ? (language === 'es' ? 'Editar Stock' : 'Edit Stock')
@@ -438,10 +441,10 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
             </div>
 
             {/* Formulario */}
-            <div className="space-y-4">
+            <div className="p-6 space-y-4">
               {/* Proveedor */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                   {language === 'es' ? 'Proveedor' : 'Provider'} <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -450,7 +453,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
                     setSelectedProvider(e.target.value);
                     setFormData(prev => ({ ...prev, productoId: '' }));
                   }}
-                  className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors duration-300"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors duration-300"
                 >
                   <option value="">{language === 'es' ? 'Seleccionar proveedor' : 'Select provider'}</option>
                   {providers.map(provider => (
@@ -463,7 +466,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
 
               {/* Producto */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                   {language === 'es' ? 'Producto' : 'Product'} <span className="text-red-500">*</span>
                 </label>
                 <select
@@ -471,7 +474,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
                   value={formData.productoId}
                   onChange={handleInputChange}
                   disabled={!selectedProvider}
-                  className={`w-full px-4 py-2 rounded-lg border transition-colors duration-300 ${
+                  className={`w-full px-4 py-3 md:py-2 text-base md:text-sm rounded-lg border transition-colors duration-300 ${
                     selectedProvider
                       ? 'bg-gray-700 light-mode:bg-gray-100 border-gray-600 light-mode:border-gray-300 text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none'
                       : 'bg-gray-800 light-mode:bg-gray-200 border-gray-700 light-mode:border-gray-400 text-gray-500 light-mode:text-gray-600 cursor-not-allowed opacity-50'
@@ -493,7 +496,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
 
               {/* Stock Actual */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                   {language === 'es' ? 'Stock Actual' : 'Current Stock'} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -501,14 +504,14 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
                   name="stockActual"
                   value={formData.stockActual}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                   placeholder="Ej: 10"
                 />
               </div>
 
               {/* Stock Mínimo */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                   {language === 'es' ? 'Stock Mínimo' : 'Minimum Stock'} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -516,14 +519,14 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
                   name="stockMinimo"
                   value={formData.stockMinimo}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                   placeholder="Ej: 8"
                 />
               </div>
 
               {/* Stock de Compra (Objetivo) */}
               <div>
-                <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                <label className="block text-base md:text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
                   {language === 'es' ? 'Stock Objetivo (Compra)' : 'Target Stock (Purchase)'} <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -531,23 +534,23 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
                   name="stockCompra"
                   value={formData.stockCompra}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-300"
+                  className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none transition-colors duration-300"
                   placeholder="Ej: 10"
                 />
               </div>
             </div>
 
             {/* Botones */}
-            <div className="mt-6 flex gap-3 justify-end">
+            <div className="p-6 border-t border-gray-700 light-mode:border-gray-200 flex flex-col md:flex-row gap-3 justify-end">
               <button
                 onClick={() => setShowModal(false)}
-                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors duration-300"
+                className="w-full md:w-auto px-4 py-3 md:py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors duration-300 text-base md:text-sm font-semibold"
               >
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
               </button>
               <button
                 onClick={handleSaveStock}
-                className="px-4 py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300"
+                className="w-full md:w-auto px-4 py-3 md:py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors duration-300 text-base md:text-sm"
               >
                 {language === 'es' ? 'Guardar' : 'Save'}
               </button>
@@ -559,7 +562,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
       {/* Modal de Toma de Inventario Físico */}
       {showInventoryModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#111827] light-mode:bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+          <div className="bg-[#111827] light-mode:bg-white rounded-lg w-full h-screen md:h-auto max-h-[90vh] overflow-y-auto md:max-w-2xl shadow-2xl"
             {/* Encabezado */}
             <div className="sticky top-0 bg-[#111827] light-mode:bg-white border-b border-gray-700 light-mode:border-gray-200 p-6 flex items-center justify-between">
               <h2 className="text-white light-mode:text-gray-900 font-bold text-2xl">
@@ -578,7 +581,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Nombre del Responsable */}
                 <div>
-                  <label className="block text-white light-mode:text-gray-900 font-semibold mb-2 text-sm">
+                  <label className="block text-base md:text-sm text-white light-mode:text-gray-900 font-semibold mb-2">
                     {language === 'es' ? 'Responsable' : 'Responsible'}
                   </label>
                   <input
@@ -586,46 +589,46 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
                     value={inventoryForm.responsible}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, responsible: e.target.value })}
                     placeholder={language === 'es' ? 'Nombre completo' : 'Full name'}
-                    className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors text-lg"
+                    className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors"
                   />
                 </div>
 
                 {/* Fecha */}
                 <div>
-                  <label className="block text-white light-mode:text-gray-900 font-semibold mb-2 text-sm">
+                  <label className="block text-base md:text-sm text-white light-mode:text-gray-900 font-semibold mb-2">
                     {language === 'es' ? 'Fecha' : 'Date'}
                   </label>
                   <input
                     type="date"
                     value={inventoryForm.date}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, date: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors text-lg"
+                    className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors"
                   />
                 </div>
 
                 {/* Hora */}
                 <div>
-                  <label className="block text-white light-mode:text-gray-900 font-semibold mb-2 text-sm">
+                  <label className="block text-base md:text-sm text-white light-mode:text-gray-900 font-semibold mb-2">
                     {language === 'es' ? 'Hora' : 'Time'}
                   </label>
                   <input
                     type="time"
                     value={inventoryForm.time}
                     onChange={(e) => setInventoryForm({ ...inventoryForm, time: e.target.value })}
-                    className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors text-lg"
+                    className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors"
                   />
                 </div>
               </div>
 
               {/* Selector de Proveedor */}
               <div>
-                <label className="block text-white light-mode:text-gray-900 font-semibold mb-2 text-sm">
+                <label className="block text-base md:text-sm text-white light-mode:text-gray-900 font-semibold mb-2">
                   {language === 'es' ? 'Proveedor' : 'Provider'}
                 </label>
                 <select
                   value={inventoryForm.provider}
                   onChange={(e) => handleInventoryProviderChange(e.target.value)}
-                  className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors appearance-none cursor-pointer text-lg"
+                  className="w-full px-4 py-3 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none transition-colors appearance-none cursor-pointer"
                 >
                   <option value="">{language === 'es' ? 'Selecciona un proveedor' : 'Select a provider'}</option>
                   {providers.map(provider => (
@@ -639,14 +642,14 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
               {/* Productos para contar */}
               {inventoryForm.provider && inventoryForm.items.length > 0 && (
                 <div>
-                  <h3 className="text-white light-mode:text-gray-900 font-bold mb-4">
+                  <h3 className="text-base md:text-lg text-white light-mode:text-gray-900 font-bold mb-4">
                     {language === 'es' ? 'Productos a contar' : 'Products to count'} ({inventoryForm.items.length})
                   </h3>
                   <div className="space-y-3 max-h-96 overflow-y-auto">
                     {inventoryForm.items.map((item) => (
                       <div key={item.productId} className="flex items-center gap-3 p-4 bg-gray-700 light-mode:bg-gray-100 rounded-lg border border-gray-600 light-mode:border-gray-300">
                         <div className="flex-1">
-                          <p className="text-white light-mode:text-gray-900 font-semibold text-sm truncate">
+                          <p className="text-white light-mode:text-gray-900 font-semibold text-sm md:text-xs truncate">
                             {item.productName}
                           </p>
                         </div>
@@ -655,7 +658,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
                           value={item.quantity}
                           onChange={(e) => handleInventoryItemChange(item.productId, e.target.value)}
                           placeholder="0"
-                          className="w-24 px-4 py-2 bg-gray-600 light-mode:bg-gray-200 border border-gray-500 light-mode:border-gray-400 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors text-xl font-bold text-center"
+                          className="px-4 py-3 md:py-2 bg-gray-600 light-mode:bg-gray-200 border border-gray-500 light-mode:border-gray-400 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors text-lg md:text-base font-bold text-center w-20"
                           autoFocus
                         />
                       </div>
@@ -667,7 +670,7 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
               {/* Mensaje si no hay proveedor seleccionado */}
               {!inventoryForm.provider && (
                 <div className="p-4 bg-gray-700 light-mode:bg-gray-100 rounded-lg border border-gray-600 light-mode:border-gray-300 text-center">
-                  <p className="text-gray-400 light-mode:text-gray-600">
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm md:text-base">
                     {language === 'es' ? 'Selecciona un proveedor para comenzar' : 'Select a provider to begin'}
                   </p>
                 </div>
@@ -675,17 +678,17 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
             </div>
 
             {/* Botones de acción */}
-            <div className="sticky bottom-0 bg-[#111827] light-mode:bg-white border-t border-gray-700 light-mode:border-gray-200 p-6 flex gap-3 justify-end">
+            <div className="sticky bottom-0 bg-[#111827] light-mode:bg-white border-t border-gray-700 light-mode:border-gray-200 p-6 flex flex-col md:flex-row gap-3 justify-end">
               <button
                 onClick={() => setShowInventoryModal(false)}
-                className="px-6 py-3 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors font-semibold"
+                className="w-full md:w-auto px-6 py-3 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors font-semibold text-base md:text-sm"
               >
                 {language === 'es' ? 'Cancelar' : 'Cancel'}
               </button>
               <button
                 onClick={handleSaveInventory}
                 disabled={!inventoryForm.responsible || !inventoryForm.provider || inventoryForm.items.some(i => i.quantity === '')}
-                className="px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
+                className="w-full md:w-auto px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors text-base md:text-sm"
               >
                 {language === 'es' ? 'Guardar Inventario' : 'Save Inventory'}
               </button>
