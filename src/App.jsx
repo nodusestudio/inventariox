@@ -405,10 +405,6 @@ export default function App() {
               setLanguage={setLanguage}
               companyData={companyData || DEFAULT_COMPANY}
               setCompanyData={setCompanyData}
-              providersData={providersData || []}
-              productsData={productsData || []}
-              stockData={stockData || []}
-              ordersData={ordersData || []}
             />
           );
         default:
