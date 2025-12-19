@@ -127,6 +127,8 @@ export default function Inventory({ productsData: initialData = [], setProductsD
     const updated = productsData.filter(p => p.id !== id);
     setLocalProductsData(updated);
     if (setProductsData) setProductsData(updated);
+    // Guardar en localStorage
+    localStorage.setItem('inventariox_products', JSON.stringify(updated));
     setConfirmDelete(null);
   };
 

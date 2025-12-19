@@ -7,13 +7,22 @@ body {
   @apply bg-[#111827] text-white font-sans transition-colors duration-300;
 }
 
-/* Estilos para modo claro */
-.light-mode body {
-  @apply bg-gray-50 text-gray-900;
+/* Variable personalizada para color oscuro */
+.dark-mode {
+  @apply bg-[#111827] text-white transition-colors duration-300;
 }
 
+.bg-dark-bg {
+  @apply bg-[#111827];
+}
+
+/* Estilos para modo claro */
 .light-mode {
   @apply bg-gray-50 text-gray-900 transition-colors duration-300;
+}
+
+.light-mode body {
+  @apply bg-gray-50 text-gray-900;
 }
 
 /* Estilos personalizados - TEMA OSCURO */
