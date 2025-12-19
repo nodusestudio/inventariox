@@ -1,11 +1,17 @@
 import { Search, Plus, X, Trash2, MessageCircle } from 'lucide-react';
 import TableContainer from '../components/TableContainer';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { t } from '../utils/translations';
 
-export default function Orders({ language = 'es', productsData = [], providers = [], stockData = [], companyName = 'Mi Empresa' }) {
+export default function Orders({ language = 'es', productsData = [], providers = [], stockData = [], companyData = {}, ordersData = [], setOrdersData }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => {
+    if (ordersData && ordersData.length > 0) {
+      return ordersData;
+    }
+    const saved = localStorage.getItem('inventariox_orders');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [confirmDelete, setConfirmDelete] = useState(null);
   
   // Estados para el flujo de creación de pedido
@@ -15,6 +21,14 @@ export default function Orders({ language = 'es', productsData = [], providers =
   const [orderTotal, setOrderTotal] = useState(0);
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliveryTime, setDeliveryTime] = useState('');
+
+  // Guardar cambios en localStorage y en App.jsx
+  useEffect(() => {
+    localStorage.setItem('inventariox_orders', JSON.stringify(orders));
+    if (setOrdersData) {
+      setOrdersData(orders);
+    }
+  }, [orders, setOrdersData]);
 
   // Funciones de formateo
   const formatCurrency = (value) => {
@@ -147,7 +161,7 @@ export default function Orders({ language = 'es', productsData = [], providers =
       } else if (dateText) {
         deliveryInfo = `\n${language === 'es' ? 'El pedido lo necesito para el' : 'I need the order for'} ${dateText}\n`;
       } else if (timeText) {
-        deliveryInfo = `\n${language === 'es' ? 'El pedido lo necesito para la hora' : 'I need the order for'} ${timeText}\n`;
+        deliveryInfo = `\n${language === 'es' ? 'El pedido lo necesito para la hora' : 'I need the order for'} ${timeTime}\n`;
       }
     }
     
@@ -155,9 +169,13 @@ export default function Orders({ language = 'es', productsData = [], providers =
       ? `\n\nMe confirmas por favor y el total, gracias`
       : `\n\nPlease confirm and the total, thank you`;
     
+    // Extraer nombre de empresa y dirección del companyData
+    const empresaNombre = companyData?.nombreEmpresa || 'Mi Empresa';
+    const empresaDireccion = companyData?.direccion ? `\nDireccion: ${companyData.direccion}` : '';
+    
     const message = language === 'es'
-      ? `Hola ${selectedProvider.nombre}, te adjunto el pedido de ${companyName}:${deliveryInfo}\n${itemsList}${finalMessage}`
-      : `Hello ${selectedProvider.nombre}, I'm sending you ${companyName}'s order:${deliveryInfo}\n${itemsList}${finalMessage}`;
+      ? `Hola ${selectedProvider.nombre}, te adjunto el pedido de ${empresaNombre}:${empresaDireccion}${deliveryInfo}\n${itemsList}${finalMessage}`
+      : `Hello ${selectedProvider.nombre}, I'm sending you ${empresaNombre}'s order:${empresaDireccion}${deliveryInfo}\n${itemsList}${finalMessage}`;
     
     return encodeURIComponent(message);
   };

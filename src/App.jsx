@@ -8,6 +8,12 @@ import Orders from './pages/Orders';
 import Settings from './pages/Settings';
 
 // Datos iniciales por defecto
+const DEFAULT_COMPANY = {
+  nombreEmpresa: 'MI EMPRESA',
+  nitRut: '12.345.678-9',
+  direccion: 'Calle Principal 123, Ciudad',
+};
+
 const DEFAULT_PRODUCTS = [
   {
     id: 1,
@@ -84,21 +90,43 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('Panel');
   const [theme, setTheme] = useState('dark');
   const [language, setLanguage] = useState('es');
-  const [companyData, setCompanyData] = useState(() => {
-    const saved = localStorage.getItem('companyData');
-    return saved ? JSON.parse(saved) : {
-      nombreEmpresa: 'Mi Empresa',
-      nitRut: '12.345.678-9',
-      direccion: 'Calle Principal 123, Ciudad',
-    };
+  
+  // Estado de configuración de empresa con localStorage
+  const [companyDataState, setCompanyDataState] = useState(() => {
+    const saved = localStorage.getItem('fodexa_settings');
+    return saved ? JSON.parse(saved) : DEFAULT_COMPANY;
   });
+  
+  const setCompanyData = (data) => {
+    setCompanyDataState(data);
+    localStorage.setItem('fodexa_settings', JSON.stringify(data));
+  };
+  
+  const companyData = companyDataState;
 
-  // Datos de proveedores
-  const [providersData, setProvidersData] = useState([
+  // Datos de proveedores con localStorage
+  const DEFAULT_PROVIDERS = [
     { id: 1, nombre: 'DISTRIBUIDORA ABC', contacto: 'JUAN PÉREZ', email: 'JUAN@ABC.COM', whatsapp: '56912345678' },
     { id: 2, nombre: 'IMPORTACIONES GLOBAL', contacto: 'MARÍA GARCÍA', email: 'MARIA@GLOBAL.COM', whatsapp: '56987654321' },
     { id: 3, nombre: 'LOGÍSTICA DEL SUR', contacto: 'CARLOS LÓPEZ', email: 'CARLOS@SUR.COM', whatsapp: '56955555555' },
-  ]);
+  ];
+
+  const [providersDataState, setProvidersDataState] = useState(() => {
+    const saved = localStorage.getItem('inventariox_providers');
+    return saved ? JSON.parse(saved) : DEFAULT_PROVIDERS;
+  });
+
+  const setProvidersData = (data) => {
+    setProvidersDataState(data);
+    localStorage.setItem('inventariox_providers', JSON.stringify(data));
+  };
+
+  const providersData = providersDataState;
+
+  // Guardar cambios de configuración en localStorage
+  useEffect(() => {
+    localStorage.setItem('fodexa_settings', JSON.stringify(companyData));
+  }, [companyData]);
 
   // Aplicar tema al elemento raíz del documento
   useEffect(() => {
@@ -140,6 +168,19 @@ export default function App() {
     localStorage.setItem('inventariox_stock', JSON.stringify(data));
   };
 
+  // Estado de pedidos con localStorage
+  const [ordersDataState, setOrdersDataState] = useState(() => {
+    const saved = localStorage.getItem('inventariox_orders');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const setOrdersData = (data) => {
+    setOrdersDataState(data);
+    localStorage.setItem('inventariox_orders', JSON.stringify(data));
+  };
+
+  const ordersData = ordersDataState;
+
   const renderContent = () => {
     switch (activeTab) {
       case 'Panel':
@@ -151,9 +192,9 @@ export default function App() {
       case 'Proveedores':
         return <Providers language={language} providersData={providersData} setProvidersData={setProvidersData} />;
       case 'Pedidos':
-        return <Orders language={language} productsData={productsData} providers={providersData} stockData={stockData} companyName={companyData.nombreEmpresa} />;
+        return <Orders language={language} productsData={productsData} providers={providersData} stockData={stockData} companyData={companyData} ordersData={ordersData} setOrdersData={setOrdersData} />;
       case 'Configuración':
-        return <Settings theme={theme} setTheme={setTheme} language={language} setLanguage={setLanguage} />;
+        return <Settings theme={theme} setTheme={setTheme} language={language} setLanguage={setLanguage} companyData={companyData} setCompanyData={setCompanyData} />;
       default:
         return <Dashboard inventoryData={productsData} language={language} />;
     }

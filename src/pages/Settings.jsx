@@ -1,15 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Moon, Sun, Globe, Edit2, X } from 'lucide-react';
 import { t } from '../utils/translations';
 
-export default function Settings({ theme, setTheme, language, setLanguage }) {
-  const [savedData, setSavedData] = useState({
+export default function Settings({ theme, setTheme, language, setLanguage, companyData, setCompanyData }) {
+  const [savedData, setSavedData] = useState(companyData || {
     nombreEmpresa: 'Mi Empresa',
     nitRut: '12.345.678-9',
     direccion: 'Calle Principal 123, Ciudad',
   });
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(companyData || {
     nombreEmpresa: 'Mi Empresa',
     nitRut: '12.345.678-9',
     direccion: 'Calle Principal 123, Ciudad',
@@ -19,6 +19,14 @@ export default function Settings({ theme, setTheme, language, setLanguage }) {
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [tempTheme, setTempTheme] = useState(theme);
   const [tempLanguage, setTempLanguage] = useState(language);
+
+  // Sincronizar con companyData cuando cambia desde otra sección
+  useEffect(() => {
+    if (companyData) {
+      setSavedData(companyData);
+      setFormData(companyData);
+    }
+  }, [companyData]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -38,6 +46,7 @@ export default function Settings({ theme, setTheme, language, setLanguage }) {
 
     // Guardar los datos de la empresa
     setSavedData(dataToUpperCase);
+    setCompanyData(dataToUpperCase);
     
     // Aplicar y guardar tema e idioma
     setTheme(tempTheme);
@@ -50,7 +59,7 @@ export default function Settings({ theme, setTheme, language, setLanguage }) {
     setIsEditingCompany(false);
     
     // Guardar en localStorage
-    localStorage.setItem('companyData', JSON.stringify(dataToUpperCase));
+    localStorage.setItem('fodexa_settings', JSON.stringify(dataToUpperCase));
     localStorage.setItem('theme', tempTheme);
     localStorage.setItem('language', tempLanguage);
   };

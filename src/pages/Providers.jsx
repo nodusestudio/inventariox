@@ -1,16 +1,18 @@
 import { Search, Plus, Edit2, Trash2, X } from 'lucide-react';
 import TableContainer from '../components/TableContainer';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { t } from '../utils/translations';
 import { cleanPhoneNumber } from '../utils/helpers';
 
 export default function Providers({ language = 'es', providersData = [], setProvidersData }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [providers, setProviders] = useState(providersData.length > 0 ? providersData : [
-    { id: 1, nombre: 'DISTRIBUIDORA ABC', contacto: 'JUAN PÉREZ', email: 'JUAN@ABC.COM', whatsapp: '56912345678' },
-    { id: 2, nombre: 'IMPORTACIONES GLOBAL', contacto: 'MARÍA GARCÍA', email: 'MARIA@GLOBAL.COM', whatsapp: '56987654321' },
-    { id: 3, nombre: 'LOGÍSTICA DEL SUR', contacto: 'CARLOS LÓPEZ', email: 'CARLOS@SUR.COM', whatsapp: '56955555555' },
-  ]);
+  const [providers, setProviders] = useState(() => {
+    if (providersData && providersData.length > 0) {
+      return providersData;
+    }
+    const saved = localStorage.getItem('inventariox_providers');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -22,6 +24,16 @@ export default function Providers({ language = 'es', providersData = [], setProv
     email: '',
     whatsapp: ''
   });
+
+  // Guardar cambios en localStorage y en App.jsx
+  useEffect(() => {
+    if (providers.length > 0) {
+      localStorage.setItem('inventariox_providers', JSON.stringify(providers));
+      if (setProvidersData) {
+        setProvidersData(providers);
+      }
+    }
+  }, [providers, setProvidersData]);
 
   const filteredProviders = providers.filter(p =>
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
