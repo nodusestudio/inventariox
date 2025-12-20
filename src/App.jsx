@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import Navbar from './components/Navbar';
+import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Stock from './pages/Stock';
@@ -431,10 +431,15 @@ export default function App() {
         theme === 'light'
           ? 'light-mode bg-gray-50 text-gray-900'
           : 'dark-mode bg-[#111827] text-white'
-      } min-h-screen w-full transition-colors duration-300`}
+      } min-h-screen w-full transition-colors duration-300 flex`}
     >
-      <Navbar activeTab={activeTab} onTabChange={setActiveTab} language={language} />
-      <div className="w-full max-w-7xl mx-auto px-0">{renderContent()}</div>
+      {/* Sidebar */}
+      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} language={language} />
+      
+      {/* Contenido Principal */}
+      <div className="flex-1 overflow-auto">
+        <div className="w-full h-full p-4 md:p-6">{renderContent()}</div>
+      </div>
     </div>
   );
 }

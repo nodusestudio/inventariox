@@ -1,11 +1,11 @@
 export default function TableContainer({ columns, data, onRowClick, isRowAlert }) {
   return (
-    <div className="bg-gray-800 light-mode:bg-white rounded-lg shadow-lg border border-gray-700 light-mode:border-gray-200 overflow-hidden transition-colors duration-300">
+    <div className="bg-[#1f2937] light-mode:bg-white rounded-lg shadow-lg border border-[#374151] light-mode:border-gray-200 overflow-hidden transition-colors duration-300">
       {/* Tabla Desktop - Visible en md y arriba */}
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full min-w-full">
           {/* Encabezados */}
-          <thead className="bg-gray-900 light-mode:bg-gray-100 border-b border-gray-700 light-mode:border-gray-300">
+          <thead className="bg-[#111827] light-mode:bg-gray-100 border-b border-[#374151] light-mode:border-gray-300">
             <tr>
               {columns.map((column) => (
                 <th
@@ -33,11 +33,11 @@ export default function TableContainer({ columns, data, onRowClick, isRowAlert }
                   <tr
                     key={idx}
                     onClick={() => onRowClick?.(row)}
-                    className={`border-b border-gray-700 light-mode:border-gray-200 cursor-pointer ${
+                    className={`border-b border-[#374151] light-mode:border-gray-200 cursor-pointer ${
                       hasAlert 
                         ? 'bg-red-950/30 light-mode:bg-red-100/30 hover:bg-red-950/50 light-mode:hover:bg-red-100/50' 
-                        : 'table-row-hover'
-                    }`}
+                        : 'hover:bg-[#2d3748] light-mode:hover:bg-gray-100'
+                    } transition-colors duration-200`}
                   >
                     {columns.map((column) => (
                       <td
@@ -60,7 +60,7 @@ export default function TableContainer({ columns, data, onRowClick, isRowAlert }
         <div className="inline-block min-w-full">
           <table className="w-full border-collapse">
             {/* Encabezados */}
-            <thead className="bg-gray-900 light-mode:bg-gray-100 border-b border-gray-700 light-mode:border-gray-300">
+            <thead className="bg-[#111827] light-mode:bg-gray-100 border-b border-[#374151] light-mode:border-gray-300">
               <tr>
                 {columns.map((column) => (
                   <th
@@ -87,10 +87,10 @@ export default function TableContainer({ columns, data, onRowClick, isRowAlert }
                   return (
                     <tr
                       key={idx}
-                      className={`border-b border-gray-700 light-mode:border-gray-200 ${
+                      className={`border-b border-[#374151] light-mode:border-gray-200 ${
                         hasAlert 
                           ? 'bg-red-950/30 light-mode:bg-red-100/30' 
-                          : 'hover:bg-gray-700 light-mode:hover:bg-gray-100'
+                          : 'hover:bg-[#2d3748] light-mode:hover:bg-gray-100'
                       } transition-colors duration-200`}
                     >
                       {columns.map((column) => (

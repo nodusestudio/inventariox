@@ -25,13 +25,66 @@ body {
   @apply bg-gray-50 text-gray-900;
 }
 
-/* Estilos personalizados - TEMA OSCURO */
+/* ============================================================================
+   ESTILOS DEL SIDEBAR
+   ============================================================================ */
+
+/* Contenedor principal con layout flexbox para Sidebar + Contenido */
+.dark-mode .sidebar {
+  @apply bg-[#1f2937] text-white;
+}
+
+.dark-mode .sidebar-nav button {
+  @apply text-gray-300;
+}
+
+.dark-mode .sidebar-nav button.active {
+  @apply bg-[#206DDA] text-white shadow-lg;
+}
+
+.dark-mode .sidebar-nav button:hover:not(.active) {
+  @apply bg-gray-700 text-white;
+}
+
+/* Ajuste de espaciado principal cuando hay Sidebar */
+main {
+  @apply flex-1;
+}
+
+/* ============================================================================
+   SISTEMA DE TARJETAS UNIFICADO
+   ============================================================================ */
+
+.card {
+  @apply bg-[#1f2937] border border-[#374151] rounded-lg transition-all duration-200;
+}
+
+.card:hover {
+  @apply border-[#475569] shadow-lg;
+}
+
+.card-header {
+  @apply bg-[#111827] px-6 py-4 border-b border-[#374151] rounded-t-lg;
+}
+
+.card-body {
+  @apply px-6 py-4;
+}
+
+.card-footer {
+  @apply bg-[#111827] px-6 py-4 border-t border-[#374151] rounded-b-lg;
+}
+
+/* ============================================================================
+   ESTILOS PERSONALIZADOS - TEMA OSCURO
+   ============================================================================ */
+
 .gradient-logo {
   @apply bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent;
 }
 
 .tab-active {
-  @apply bg-blue-500 text-white shadow-lg;
+  @apply bg-[#206DDA] text-white shadow-lg;
 }
 
 .tab-inactive {
@@ -39,58 +92,55 @@ body {
 }
 
 .metric-card {
-  @apply bg-gray-800 rounded-lg p-4 sm:p-6 shadow-md border border-gray-700;
+  @apply bg-[#1f2937] rounded-lg p-4 sm:p-6 shadow-md border border-[#374151];
+}
+
+.metric-card:hover {
+  @apply border-[#475569] shadow-lg;
 }
 
 .table-row-hover {
-  @apply hover:bg-gray-700 transition-colors duration-200;
+  @apply hover:bg-[#2d3748] transition-colors duration-200;
 }
 
-/* Estilos personalizados - TEMA CLARO */
+.input-dark {
+  @apply bg-[#111827] text-white border border-[#374151] rounded px-3 py-2 focus:border-[#206DDA] focus:outline-none focus:ring-1 focus:ring-[#206DDA];
+}
+
+.btn-primary-dark {
+  @apply bg-[#206DDA] text-white hover:bg-blue-600 transition-colors;
+}
+
+.btn-secondary-dark {
+  @apply bg-[#374151] text-white hover:bg-[#4b5563] transition-colors;
+}
+
+/* ============================================================================
+   ESTILOS PERSONALIZADOS - TEMA CLARO
+   ============================================================================ */
+
+.light-mode .card {
+  @apply bg-white border border-gray-200;
+}
+
+.light-mode .card:hover {
+  @apply border-gray-300 shadow-lg;
+}
+
+.light-mode .card-header {
+  @apply bg-gray-50 px-6 py-4 border-b border-gray-200;
+}
+
+.light-mode .card-footer {
+  @apply bg-gray-50 px-6 py-4 border-t border-gray-200;
+}
+
 .light-mode .metric-card {
   @apply bg-white rounded-lg p-6 shadow-md border border-gray-200;
 }
 
-.light-mode .tab-inactive {
-  @apply text-gray-600 hover:text-gray-900 transition-colors;
-}
-
-.light-mode .table-row-hover {
-  @apply hover:bg-gray-100 transition-colors duration-200;
-}
-
-/* Navbar estilos para modo claro */
-.light-mode .navbar {
-  @apply bg-white border-b border-gray-300 shadow-sm;
-}
-
-.light-mode .nav-tab {
-  @apply text-gray-700;
-}
-
-.light-mode .nav-tab.active {
-  @apply text-blue-500;
-}
-
-/* Tablas y contenedores para modo claro */
-.light-mode table {
-  @apply bg-white;
-}
-
-.light-mode thead {
-  @apply bg-gray-100 border-b border-gray-300;
-}
-
-.light-mode thead th {
-  @apply text-gray-900;
-}
-
-.light-mode tbody tr {
-  @apply border-b border-gray-200;
-}
-
-.light-mode tbody tr td {
-  @apply text-gray-900;
+.light-mode .metric-card:hover {
+  @apply border-gray-300 shadow-lg;
 }
 
 /* Forms y inputs para modo claro */
