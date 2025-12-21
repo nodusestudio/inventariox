@@ -1,5 +1,6 @@
 import { Search, Plus, X, Trash2, MessageCircle } from 'lucide-react';
 import TableContainer from '../components/TableContainer';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { useState, useEffect } from 'react';
 import { t } from '../utils/translations';
 
@@ -336,32 +337,16 @@ export default function Orders({ language = 'es', productsData = [], providers =
           )}
 
           {/* Diálogo de Confirmación de Eliminación */}
-          {confirmDelete && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-[#111827] light-mode:bg-white rounded-lg p-8 max-w-sm w-full mx-4">
-                <h3 className="text-xl font-bold text-white light-mode:text-gray-900 mb-4">
-                  {language === 'es' ? '¿Eliminar este pedido?' : 'Delete this order?'}
-                </h3>
-                <p className="text-gray-400 light-mode:text-gray-600 mb-6">
-                  {language === 'es' ? 'Esta acción no se puede deshacer.' : 'This action cannot be undone.'}
-                </p>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => setConfirmDelete(null)}
-                    className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 light-mode:bg-gray-200 light-mode:hover:bg-gray-300 text-white light-mode:text-gray-900 rounded-lg transition-colors font-medium"
-                  >
-                    {language === 'es' ? 'Cancelar' : 'Cancel'}
-                  </button>
-                  <button
-                    onClick={() => handleDeleteOrder(confirmDelete)}
-                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-medium"
-                  >
-                    {language === 'es' ? 'Eliminar' : 'Delete'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <ConfirmationModal
+            isOpen={confirmDelete !== null}
+            title={language === 'es' ? '¿Eliminar este pedido?' : 'Delete this order?'}
+            message={language === 'es' ? '¿Estás seguro de eliminar este registro? Esta acción no se puede deshacer.' : 'Are you sure you want to delete this record? This action cannot be undone.'}
+            onConfirm={() => handleDeleteOrder(confirmDelete)}
+            onCancel={() => setConfirmDelete(null)}
+            confirmText={language === 'es' ? 'Eliminar' : 'Delete'}
+            cancelText={language === 'es' ? 'Cancelar' : 'Cancel'}
+            isDangerous={true}
+          />
         </div>
       </div>
     );

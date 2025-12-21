@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search, Plus, Edit2, Trash2, X, AlertCircle, Clipboard } from 'lucide-react';
 import TableContainer from '../components/TableContainer';
 import InventoryHistory from '../components/InventoryHistory';
+import ConfirmationModal from '../components/ConfirmationModal';
 import { t } from '../utils/translations';
 
 // Función para formatear números como moneda
@@ -267,9 +268,31 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
       key: 'stockActual',
       label: language === 'es' ? 'Stock Actual' : 'Current Stock',
       render: (value, row) => {
-        const { isAlert } = getStockInfo(row);
+        const stockActual = parseInt(value) || 0;
+        const stockMinimo = parseInt(row.stockMinimo) || 0;
+        
+        // Rojo y negrita: Si stock <= stock mínimo
+        if (stockActual <= stockMinimo) {
+          return (
+            <span className="text-red-500 font-bold text-base">
+              {value}
+            </span>
+          );
+        }
+        
+        // Amarillo: Si está cerca del límite (stock mínimo + 20%)
+        const alertThreshold = stockMinimo + (stockMinimo * 0.2);
+        if (stockActual <= alertThreshold) {
+          return (
+            <span className="text-yellow-500 font-semibold text-base">
+              {value}
+            </span>
+          );
+        }
+        
+        // Verde: Si hay stock suficiente
         return (
-          <span className={isAlert ? 'text-red-400 font-bold' : 'text-green-400'}>
+          <span className="text-green-500 font-semibold text-base">
             {value}
           </span>
         );
@@ -705,32 +728,16 @@ export default function Stock({ productsData = [], stockData = [], setStockData 
       />
 
       {/* Modal de confirmación de eliminación */}
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-[#111827] light-mode:bg-white rounded-lg p-6 max-w-sm w-full mx-4 shadow-xl">
-            <h3 className="text-white light-mode:text-gray-900 font-bold text-lg mb-4">
-              {language === 'es' ? '¿Eliminar stock?' : 'Delete stock?'}
-            </h3>
-            <p className="text-gray-400 light-mode:text-gray-600 mb-6">
-              {language === 'es' ? 'Esta acción no se puede deshacer.' : 'This action cannot be undone.'}
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="px-4 py-2 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors"
-              >
-                {language === 'es' ? 'Cancelar' : 'Cancel'}
-              </button>
-              <button
-                onClick={() => handleDeleteStock(confirmDelete)}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors"
-              >
-                {language === 'es' ? 'Eliminar' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal
+        isOpen={confirmDelete !== null}
+        title={language === 'es' ? '¿Eliminar stock?' : 'Delete stock?'}
+        message={language === 'es' ? '¿Estás seguro de eliminar este registro? Esta acción no se puede deshacer.' : 'Are you sure you want to delete this record? This action cannot be undone.'}
+        onConfirm={() => handleDeleteStock(confirmDelete)}
+        onCancel={() => setConfirmDelete(null)}
+        confirmText={language === 'es' ? 'Eliminar' : 'Delete'}
+        cancelText={language === 'es' ? 'Cancelar' : 'Cancel'}
+        isDangerous={true}
+      />
     </div>
   );
 }

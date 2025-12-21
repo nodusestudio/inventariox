@@ -341,7 +341,7 @@ export default function App() {
     try {
       switch (activeTab) {
         case 'Panel':
-          return <Dashboard inventoryData={productsData || []} language={language} />;
+          return <Dashboard inventoryData={productsData || []} productsData={productsData || []} stockData={stockData || []} language={language} />;
         case 'Productos':
           return (
             <Inventory
@@ -408,7 +408,7 @@ export default function App() {
             />
           );
         default:
-          return <Dashboard inventoryData={productsData || []} language={language} />;
+          return <Dashboard inventoryData={productsData || []} productsData={productsData || []} stockData={stockData || []} language={language} />;
       }
     } catch (error) {
       console.error('Error al renderizar contenido:', error);

@@ -1,10 +1,10 @@
-import { Package, TrendingUp, AlertCircle, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Package, TrendingUp, AlertCircle, AlertTriangle, CheckCircle, DollarSign, AlertOctagon, Boxes } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import MetricCard from '../components/MetricCard';
 import TableContainer from '../components/TableContainer';
 import { t } from '../utils/translations';
 
-export default function Dashboard({ inventoryData, language = 'es' }) {
+export default function Dashboard({ inventoryData, productsData = [], stockData = [], language = 'es' }) {
   const [alertProducts, setAlertProducts] = useState([]);
 
   // Función para calcular productos en estado crítico
@@ -27,10 +27,24 @@ export default function Dashboard({ inventoryData, language = 'es' }) {
     calculateAlerts();
   }, [inventoryData]);
 
-  // Calcular métricas
+  // Calcular métricas mejoradas
   const totalProducts = inventoryData.length;
   const lowStock = inventoryData.filter(item => item.stockActual < item.stockMinimo).length;
-  const pendingOrders = 5; // Placeholder
+  
+  // Calcular valor total: Suma de (Costo Unitario * Stock Actual)
+  const totalValue = stockData.reduce((sum, stockItem) => {
+    const product = productsData.find(p => p.id === stockItem.productoId);
+    if (product) {
+      return sum + (product.costo * stockItem.stockActual);
+    }
+    return sum;
+  }, 0);
+  
+  // Productos críticos: cantidad de productos por debajo del stock mínimo
+  const criticalProducts = stockData.filter(item => item.stockActual <= item.stockMinimo).length;
+  
+  // Total referencias: cantidad total de productos distintos
+  const totalReferences = productsData.length;
 
   const columns = [
     { key: 'nombre', label: t(language, 'nombre') },
@@ -103,25 +117,22 @@ export default function Dashboard({ inventoryData, language = 'es' }) {
         {/* Tarjetas de Métricas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <MetricCard
-            title={t(language, 'totalProductos')}
-            value={totalProducts}
-            icon={Package}
+            title={language === 'es' ? 'Valor Total Inventario' : 'Total Inventory Value'}
+            value={`$${new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(totalValue)}`}
+            icon={DollarSign}
             color="primary"
-            trend={{ value: '+12%', positive: true }}
           />
           <MetricCard
-            title={t(language, 'productosBajoStock')}
-            value={lowStock}
-            icon={AlertCircle}
+            title={language === 'es' ? 'Productos Críticos' : 'Critical Products'}
+            value={criticalProducts}
+            icon={AlertOctagon}
             color="warning"
-            trend={{ value: '2 ' + t(language, 'criticos'), positive: false }}
           />
           <MetricCard
-            title={t(language, 'gestionPedidos')}
-            value={pendingOrders}
-            icon={TrendingUp}
+            title={language === 'es' ? 'Total Referencias' : 'Total References'}
+            value={totalReferences}
+            icon={Boxes}
             color="secondary"
-            trend={{ value: '+5%', positive: true }}
           />
         </div>
 
