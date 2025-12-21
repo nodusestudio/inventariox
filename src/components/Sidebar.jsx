@@ -10,7 +10,8 @@ import {
   Menu,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  TrendingUp
 } from 'lucide-react';
 import Logo from './Logo';
 import { t } from '../utils/translations';
@@ -36,8 +37,8 @@ export default function Sidebar({ activeTab, onTabChange, language = 'es' }) {
   const tabs = [
     { name: 'Panel', icon: LayoutDashboard, label: t(language, 'panel') },
     { name: 'Proveedores', icon: Users, label: t(language, 'proveedores') },
-    { name: 'Productos', icon: Package, label: language === 'es' ? 'Productos' : 'Products' },
     { name: 'Inventario', icon: Boxes, label: language === 'es' ? 'Inventario' : 'Inventory' },
+    { name: 'Movimientos', icon: TrendingUp, label: language === 'es' ? 'Movimientos' : 'Movements' },
     { name: 'Pedidos', icon: ShoppingCart, label: t(language, 'pedidos') },
     { name: 'Base de Datos', icon: Database, label: language === 'es' ? 'Base de Datos' : 'Database' },
     { name: 'Configuración', icon: SettingsIcon, label: t(language, 'configuracion') },

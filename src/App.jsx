@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
-import Inventory from './pages/Inventory';
 import Stock from './pages/Stock';
+import Movements from './pages/Movements';
 import Providers from './pages/Providers';
 import Orders from './pages/Orders';
 import Settings from './pages/Settings';
@@ -25,8 +25,6 @@ const DEFAULT_PRODUCTS = [
     proveedor: 'DISTRIBUIDORA ABC',
     proveedorId: 1,
     unidad: 'UNIDADES',
-    contenidoEmpaque: '1 UNIDAD',
-    merma: 2.5,
     costo: 800000,
   },
   {
@@ -35,8 +33,6 @@ const DEFAULT_PRODUCTS = [
     proveedor: 'IMPORTACIONES GLOBAL',
     proveedorId: 2,
     unidad: 'UNIDADES',
-    contenidoEmpaque: '1 UNIDAD',
-    merma: 1.0,
     costo: 250000,
   },
   {
@@ -45,8 +41,6 @@ const DEFAULT_PRODUCTS = [
     proveedor: 'LOGÍSTICA DEL SUR',
     proveedorId: 3,
     unidad: 'UNIDADES',
-    contenidoEmpaque: '1 UNIDAD',
-    merma: 0.5,
     costo: 85000,
   },
   {
@@ -55,8 +49,6 @@ const DEFAULT_PRODUCTS = [
     proveedor: 'DISTRIBUIDORA ABC',
     proveedorId: 1,
     unidad: 'UNIDADES',
-    contenidoEmpaque: '1 UNIDAD',
-    merma: 1.5,
     costo: 35000,
   },
   {
@@ -65,8 +57,6 @@ const DEFAULT_PRODUCTS = [
     proveedor: 'IMPORTACIONES GLOBAL',
     proveedorId: 2,
     unidad: 'METROS',
-    contenidoEmpaque: '1 METRO',
-    merma: 0.1,
     costo: 12000,
   },
   {
@@ -75,8 +65,6 @@ const DEFAULT_PRODUCTS = [
     proveedor: 'LOGÍSTICA DEL SUR',
     proveedorId: 3,
     unidad: 'TUBOS',
-    contenidoEmpaque: '1 TUBO',
-    merma: 2.0,
     costo: 15000,
   },
 ];
@@ -342,15 +330,6 @@ export default function App() {
       switch (activeTab) {
         case 'Panel':
           return <Dashboard inventoryData={productsData || []} productsData={productsData || []} stockData={stockData || []} language={language} />;
-        case 'Productos':
-          return (
-            <Inventory
-              productsData={productsData || []}
-              setProductsData={setProductsData}
-              language={language}
-              providers={providersData || []}
-            />
-          );
         case 'Inventario':
           return (
             <Stock
@@ -359,6 +338,13 @@ export default function App() {
               setStockData={setStockData}
               language={language}
               providers={providersData || []}
+            />
+          );
+        case 'Movimientos':
+          return (
+            <Movements
+              language={language}
+              productsData={productsData || []}
             />
           );
         case 'Proveedores':
