@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle } from 'lucide-react';
+import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle, Cloud, Clock, Package, Users, FileJson } from 'lucide-react';
 import { t } from '../utils/translations';
 
 // ============================================================================
@@ -486,40 +486,113 @@ export default function DatabasePage({
         <h1 className="text-3xl font-bold">Base de Datos</h1>
       </div>
 
-      {/* Estado del Sistema - Tarjetas de Conteo */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
-          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
-            👥 Proveedores
+      {/* Salud del Sistema - Minimalista */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div className="bg-[#1f2937]/50 light-mode:bg-blue-50 border border-gray-700/50 light-mode:border-blue-200 rounded-lg p-5">
+          <p className="text-xs text-gray-400 light-mode:text-blue-600 font-semibold uppercase tracking-wider mb-1">
+            Registros Totales
           </p>
-          <p className="text-3xl font-bold text-[#206DDA]">{recordCount.providers}</p>
-          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">registrados</p>
+          <p className="text-3xl font-bold text-[#206DDA]">
+            {recordCount.providers + recordCount.products + recordCount.stock + recordCount.orders}
+          </p>
         </div>
-        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
-          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
-            📦 Productos
-          </p>
-          <p className="text-3xl font-bold text-green-500">{recordCount.products}</p>
-          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">en catálogo</p>
-        </div>
-        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
-          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
-            📊 Inventario
-          </p>
-          <p className="text-3xl font-bold text-yellow-500">{recordCount.stock}</p>
-          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">ítems</p>
-        </div>
-        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
-          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
-            📋 Pedidos
-          </p>
-          <p className="text-3xl font-bold text-blue-400">{recordCount.orders}</p>
-          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">realizados</p>
+        <div className="bg-[#1f2937]/50 light-mode:bg-purple-50 border border-gray-700/50 light-mode:border-purple-200 rounded-lg p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-400 light-mode:text-purple-600 font-semibold uppercase tracking-wider mb-1">
+                Última Sincronización
+              </p>
+              <p className="text-sm text-gray-300 light-mode:text-gray-600">
+                {new Date().toLocaleDateString('es-ES', { 
+                  year: 'numeric', 
+                  month: 'short', 
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </p>
+            </div>
+            <Clock className="w-5 h-5 text-purple-500" />
+          </div>
         </div>
       </div>
 
-      {/* Grid de Secciones */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Dos Grandes Acciones */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        {/* Acción 1: Descargar Respaldo */}
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-xl p-8 shadow-lg hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold mb-1">Descargar Respaldo</h2>
+              <p className="text-sm text-gray-400 light-mode:text-gray-600">
+                Copia segura de todos tus datos
+              </p>
+            </div>
+            <Cloud className="w-12 h-12 text-blue-400 opacity-20" />
+          </div>
+          
+          <button
+            onClick={handleExportBackup}
+            className="w-full px-6 py-4 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 text-lg shadow-md"
+          >
+            <Download className="w-6 h-6" />
+            Descargar Respaldo JSON
+          </button>
+          
+          <p className="text-xs text-gray-500 light-mode:text-gray-500 text-center mt-4">
+            Contiene: Proveedores, Productos, Inventario, Pedidos
+          </p>
+        </div>
+
+        {/* Acción 2: Subir Respaldo */}
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-xl p-8 shadow-lg hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold mb-1">Subir Respaldo</h2>
+              <p className="text-sm text-gray-400 light-mode:text-gray-600">
+                Restaura tus datos desde un archivo
+              </p>
+            </div>
+            <Cloud className="w-12 h-12 text-green-400 opacity-20" />
+          </div>
+
+          <div className="relative">
+            <input
+              type="file"
+              accept=".json"
+              onChange={handleImportFile}
+              disabled={importing}
+              className="hidden"
+              id="file-input-simple"
+            />
+            <label
+              htmlFor="file-input-simple"
+              className={`block w-full px-6 py-8 rounded-lg border-2 border-dashed border-green-500/50 hover:border-green-500 transition-colors cursor-pointer text-center ${
+                importing ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <Upload className="w-8 h-8 text-green-500" />
+                <div>
+                  <p className="font-medium text-white light-mode:text-gray-900">
+                    {importing ? 'Importando...' : 'Arrastra tu archivo aquí'}
+                  </p>
+                  <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-1">
+                    o haz clic para seleccionar
+                  </p>
+                </div>
+              </div>
+            </label>
+          </div>
+
+          <p className="text-xs text-gray-500 light-mode:text-gray-500 text-center mt-4">
+            Solo archivos JSON (.json)
+          </p>
+        </div>
+      </div>
+
+      {/* Grid de Secciones - OCULTO */}
+      <div style={{ display: 'none' }} className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* SECCIÓN 1: EXPORTAR DATOS */}
         <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-4">
@@ -751,65 +824,44 @@ export default function DatabasePage({
         </div>
       </div>
 
-      {/* SECCIÓN 4: LIMPIAR BASE DE DATOS */}
-      <div className="bg-red-900/20 border border-red-700/40 rounded-lg p-6 shadow-lg">
-        <div className="flex items-center gap-2 mb-4">
-          <AlertTriangle className="w-5 h-5 text-red-500" />
-          <h2 className="text-xl font-semibold text-red-400">Limpiar Base de Datos</h2>
-        </div>
-
-        <p className="text-gray-400 light-mode:text-gray-600 text-sm mb-4">
-          Esta acción eliminará TODOS los datos y reiniciará el sistema. <strong>Asegúrate de hacer un respaldo primero.</strong>
+      {/* SECCIÓN 4: LIMPIAR BASE DE DATOS - Al Final, Minimalista */}
+      <div className="mt-12 pt-8 border-t border-gray-700 light-mode:border-gray-300">
+        <p className="text-xs text-gray-500 light-mode:text-gray-500 mb-4 text-center">
+          ⚠️ Zona de Peligro
         </p>
 
-        <div className="bg-red-950/30 border border-red-700/30 rounded-lg p-4 mb-4">
-          <p className="text-xs text-red-400 font-semibold mb-2">
-            ⚠️ Se eliminarán permanentemente:
-          </p>
-          <ul className="text-xs text-red-300 ml-4 space-y-1">
-            <li>✗ Todos los proveedores</li>
-            <li>✗ Todos los productos</li>
-            <li>✗ Todo el inventario</li>
-            <li>✗ Todos los pedidos</li>
-            <li>✗ Configuración de empresa</li>
-          </ul>
-          <p className="text-xs text-red-400 mt-3 font-bold">
-            Esta acción NO se puede deshacer.
-          </p>
+        <div className="max-w-sm mx-auto">
+          <button
+            onClick={handleReset}
+            className="w-full px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+            style={{
+              background: resetConfirm === 0 
+                ? 'rgba(220, 38, 38, 0.1)' 
+                : resetConfirm === 1 
+                ? 'rgba(220, 38, 38, 0.2)' 
+                : 'rgba(220, 38, 38, 0.3)',
+              color: '#ef4444',
+              border: '1px solid rgba(220, 38, 38, 0.3)',
+            }}
+            onMouseEnter={(e) => (e.target.style.background = 'rgba(220, 38, 38, 0.2)')}
+            onMouseLeave={(e) => {
+              e.target.style.background = resetConfirm === 0 
+                ? 'rgba(220, 38, 38, 0.1)' 
+                : resetConfirm === 1 
+                ? 'rgba(220, 38, 38, 0.2)' 
+                : 'rgba(220, 38, 38, 0.3)';
+            }}
+          >
+            <Trash2 className="w-4 h-4" />
+            {resetButtonText}
+          </button>
+
+          {resetConfirm > 0 && (
+            <p className="text-xs text-red-400 mt-2 text-center font-semibold">
+              Confirmación: {resetConfirm}/2
+            </p>
+          )}
         </div>
-
-        <button
-          onClick={handleReset}
-          className={`w-full px-4 py-3 rounded-lg text-white font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 ${
-            resetConfirm === 0 ? 'hover:from-red-700' : resetConfirm === 1 ? 'from-orange-600 to-orange-700' : 'from-red-700 to-red-900'
-          }`}
-          style={{
-            background:
-              resetConfirm === 0
-                ? 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 100%)'
-                : resetConfirm === 1
-                ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
-                : 'linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%)',
-          }}
-          onMouseEnter={(e) => (e.target.style.opacity = '0.9')}
-          onMouseLeave={(e) => (e.target.style.opacity = '1')}
-        >
-          <Trash2 className="w-5 h-5" />
-          {resetButtonText}
-        </button>
-
-        {resetConfirm > 0 && (
-          <p className="text-xs text-red-400 mt-3 text-center font-semibold">
-            Confirmación: {resetConfirm}/2
-          </p>
-        )}
-
-        <button
-          onClick={() => setResetConfirm(0)}
-          className="w-full mt-3 px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-white font-medium transition-colors"
-        >
-          Cancelar
-        </button>
       </div>
     </div>
   );
