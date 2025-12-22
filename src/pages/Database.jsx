@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle, Cloud, Clock, Package, Users, FileJson } from 'lucide-react';
+import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle, Cloud, Clock, Package, Users, FileJson, ChevronDown } from 'lucide-react';
 import { t } from '../utils/translations';
 
 // ============================================================================
@@ -224,6 +224,7 @@ export default function DatabasePage({
   const [importing, setImporting] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [downloadOption, setDownloadOption] = useState('completo');
 
   // Handlers de Exportación
   const handleExportProviders = () => {
@@ -275,13 +276,34 @@ export default function DatabasePage({
   };
 
   const handleExportBackup = () => {
-    exportToJSON({
-      company: companyData,
-      providers: providersData,
-      products: productsData,
-      stock: stockData,
-      orders: ordersData,
-    });
+    if (downloadOption === 'completo') {
+      // Descarga completa
+      exportToJSON({
+        company: companyData,
+        providers: providersData,
+        products: productsData,
+        stock: stockData,
+        orders: ordersData,
+      });
+    } else if (downloadOption === 'inventario') {
+      // Solo Inventario
+      exportToJSON({
+        company: companyData,
+        providers: [],
+        products: productsData || [],
+        stock: stockData || [],
+        orders: [],
+      });
+    } else if (downloadOption === 'proveedores') {
+      // Solo Proveedores
+      exportToJSON({
+        company: {},
+        providers: providersData || [],
+        products: [],
+        stock: [],
+        orders: [],
+      });
+    }
   };
 
   const handleImportFile = (e) => {
@@ -523,12 +545,53 @@ export default function DatabasePage({
         <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-xl p-8 shadow-lg hover:shadow-xl transition-all">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold mb-1">Descargar Respaldo</h2>
+              <h2 className="text-2xl font-bold mb-1">Descargar Datos</h2>
               <p className="text-sm text-gray-400 light-mode:text-gray-600">
-                Copia segura de todos tus datos
+                Elige qué información descargar
               </p>
             </div>
             <Cloud className="w-12 h-12 text-blue-400 opacity-20" />
+          </div>
+          
+          {/* Selector de opciones de descarga */}
+          <div className="mb-6 space-y-3">
+            <label className="block text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wide mb-3">
+              Selecciona qué descargar
+            </label>
+            
+            {[
+              { value: 'inventario', label: '📦 Solo Inventario', icon: Package, desc: 'Productos y stock' },
+              { value: 'proveedores', label: '👥 Solo Proveedores', icon: Users, desc: 'Lista de proveedores' },
+              { value: 'completo', label: '💾 Backup Completo', icon: HardDrive, desc: 'Todo tu sistema' }
+            ].map(option => (
+              <button
+                key={option.value}
+                onClick={() => setDownloadOption(option.value)}
+                className={`w-full text-left p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
+                  downloadOption === option.value
+                    ? 'border-[#206DDA] bg-[#206DDA]/10'
+                    : 'border-gray-600 light-mode:border-gray-300 hover:border-[#206DDA]/50'
+                }`}
+              >
+                <div className="flex-1">
+                  <p className="font-semibold text-white light-mode:text-gray-900">
+                    {option.label}
+                  </p>
+                  <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-1">
+                    {option.desc}
+                  </p>
+                </div>
+                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                  downloadOption === option.value
+                    ? 'border-[#206DDA] bg-[#206DDA]'
+                    : 'border-gray-500'
+                }`}>
+                  {downloadOption === option.value && (
+                    <div className="w-2 h-2 bg-white rounded-full" />
+                  )}
+                </div>
+              </button>
+            ))}
           </div>
           
           <button
@@ -536,11 +599,11 @@ export default function DatabasePage({
             className="w-full px-6 py-4 rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold transition-all duration-200 transform hover:scale-105 active:scale-95 flex items-center justify-center gap-3 text-lg shadow-md"
           >
             <Download className="w-6 h-6" />
-            Descargar Respaldo JSON
+            Descargar Ahora
           </button>
           
           <p className="text-xs text-gray-500 light-mode:text-gray-500 text-center mt-4">
-            Contiene: Proveedores, Productos, Inventario, Pedidos
+            Archivo JSON portátil y seguro
           </p>
         </div>
 
