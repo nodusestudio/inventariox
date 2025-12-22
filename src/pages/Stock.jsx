@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, X, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react';
 import TableContainer from '../components/TableContainer';
 import ConfirmationModal from '../components/ConfirmationModal';
+import ExitReasonModal from '../components/ExitReasonModal';
 import { t } from '../utils/translations';
 
 // Función para formatear números como moneda
@@ -31,6 +32,8 @@ export default function Stock({
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmAdjust, setConfirmAdjust] = useState(null);
   const [adjustType, setAdjustType] = useState(''); // 'entrada' o 'salida'
+  const [showExitReason, setShowExitReason] = useState(false); // Modal para motivos de salida
+  const [pendingProductId, setPendingProductId] = useState(null); // ID de producto esperando motivo
 
   // Formulario para nuevo producto
   const [formData, setFormData] = useState({
@@ -164,26 +167,41 @@ export default function Stock({
   };
 
   // Registrar movimiento
-  const registerMovement = (productName, type, quantity) => {
+  const registerMovement = (productName, type, quantity, reason = '') => {
     const movements = JSON.parse(localStorage.getItem('inventariox_movements') || '[]');
-    movements.push({
+    const movementData = {
       id: Date.now(),
       fechaHora: new Date().toISOString(),
       productName: productName,
       tipo: type, // 'entrada' o 'salida'
       cantidad: quantity
-    });
+    };
+    
+    // Agregar motivo solo si es una salida
+    if (type === 'salida' && reason) {
+      movementData.motivo = reason;
+    }
+    
+    movements.push(movementData);
     localStorage.setItem('inventariox_movements', JSON.stringify(movements));
   };
 
   // Ajustar stock rápidamente
   const handleQuickAdjust = (productId, type) => {
-    setConfirmAdjust(productId);
-    setAdjustType(type);
+    if (type === 'salida') {
+      // Mostrar modal para seleccionar motivo de salida
+      setPendingProductId(productId);
+      setAdjustType(type);
+      setShowExitReason(true);
+    } else {
+      // Para entrada, ir directo al modal de cantidad
+      setConfirmAdjust(productId);
+      setAdjustType(type);
+    }
   };
 
   // Procesar ajuste de stock
-  const handleProcessAdjust = (quantity) => {
+  const handleProcessAdjust = (quantity, reason = '') => {
     const stockItem = localStockData.find(s => s.productoId === confirmAdjust);
     if (!stockItem) return;
 
@@ -204,11 +222,22 @@ export default function Stock({
     // Registrar movimiento
     const product = localProducts.find(p => p.id === confirmAdjust);
     if (product) {
-      registerMovement(product.nombre, adjustType, quantity);
+      registerMovement(product.nombre, adjustType, quantity, reason);
     }
 
     setConfirmAdjust(null);
     setAdjustType('');
+  };
+
+  // Manejar selección de motivo de salida
+  const handleExitReasonSelect = (reason) => {
+    setShowExitReason(false);
+    setConfirmAdjust(pendingProductId);
+    setPendingProductId(null);
+    // Guardar el motivo para usar en handleProcessAdjust
+    setAdjustType('salida');
+    // Guardar el motivo en sessionStorage temporalmente
+    sessionStorage.setItem('exitReason', reason);
   };
 
   const handleInputChange = (e) => {
@@ -264,6 +293,17 @@ export default function Stock({
       render: (_, row) => {
         const stock = getStockInfo(row.id);
         return stock?.stockMinimo || 0;
+      }
+    },
+    {
+      key: 'valorStock',
+      label: language === 'es' ? 'Valor Stock' : 'Stock Value',
+      render: (_, row) => {
+        const stock = getStockInfo(row.id);
+        const stockActual = stock?.stockActual || 0;
+        const costo = row.costo || 0;
+        const valorTotal = stockActual * costo;
+        return `$${formatCurrency(valorTotal)}`;
       }
     },
     {
@@ -323,12 +363,32 @@ export default function Stock({
       </div>
 
       {/* Barra de búsqueda y filtros */}
-      <div className="flex flex-col md:flex-row gap-4 mb-6">
-        <div className="w-full md:w-64 relative">
+      <div className="flex flex-col md:flex-row gap-3 mb-6">
+        <div className="flex-1 relative group">
+          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#206DDA] w-5 h-5 transition-all group-focus-within:text-[#1a5ab8]" />
+          <input
+            type="text"
+            placeholder={language === 'es' ? 'Buscar producto por nombre...' : 'Search product by name...'}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-12 pr-4 py-3 md:py-2.5 bg-gray-700 light-mode:bg-white border-2 border-gray-600 light-mode:border-gray-200 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-500 light-mode:placeholder-gray-400 focus:border-[#206DDA] light-mode:focus:border-[#206DDA] focus:outline-none transition-all font-medium shadow-sm group-focus-within:shadow-lg group-focus-within:shadow-blue-500/20"
+          />
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm('')}
+              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-200 light-mode:text-gray-500 light-mode:hover:text-gray-700 transition-colors"
+              title={language === 'es' ? 'Limpiar búsqueda' : 'Clear search'}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        <div className="w-full md:w-56 relative">
           <select
             value={selectedProviderFilter}
             onChange={(e) => setSelectedProviderFilter(e.target.value)}
-            className="w-full px-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors appearance-none cursor-pointer"
+            className="w-full px-4 py-3 md:py-2.5 bg-gray-700 light-mode:bg-white border-2 border-gray-600 light-mode:border-gray-200 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-all appearance-none cursor-pointer shadow-sm hover:shadow-md font-medium"
           >
             <option value="">{language === 'es' ? 'Todos los proveedores' : 'All providers'}</option>
             {providers.map(provider => (
@@ -339,25 +399,27 @@ export default function Stock({
           </select>
         </div>
 
-        <div className="flex-1 relative">
-          <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-          <input
-            type="text"
-            placeholder={language === 'es' ? 'Buscar producto...' : 'Search product...'}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 md:py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-colors"
-          />
-        </div>
-
         <button
           onClick={handleAddProduct}
-          className="flex items-center justify-center md:justify-start gap-2 w-full md:w-auto px-4 md:px-6 py-3 md:py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors text-base md:text-sm"
+          className="flex items-center justify-center md:justify-start gap-2 w-full md:w-auto px-4 md:px-6 py-3 md:py-2.5 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-all text-base md:text-sm shadow-md hover:shadow-lg hover:shadow-blue-500/30"
         >
           <Plus className="w-5 h-5" />
           {language === 'es' ? 'Nuevo Producto' : 'New Product'}
         </button>
       </div>
+
+      {/* Indicador de resultados */}
+      {(searchTerm || selectedProviderFilter) && (
+        <div className="mb-4 flex items-center gap-2 text-gray-400 light-mode:text-gray-600">
+          <AlertCircle className="w-4 h-4" />
+          <span className="text-sm">
+            {language === 'es' 
+              ? `${filteredProducts.length} producto${filteredProducts.length !== 1 ? 's' : ''} encontrado${filteredProducts.length !== 1 ? 's' : ''}`
+              : `${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''} found`
+            }
+          </span>
+        </div>
+      )}
 
       {/* Tabla */}
       {filteredProducts.length > 0 ? (
@@ -365,7 +427,10 @@ export default function Stock({
       ) : (
         <div className="bg-gray-800 light-mode:bg-gray-100 rounded-lg p-12 text-center">
           <p className="text-gray-400 light-mode:text-gray-600 text-lg">
-            {language === 'es' ? 'No hay productos registrados' : 'No products registered'}
+            {language === 'es' 
+              ? (searchTerm || selectedProviderFilter ? 'No se encontraron productos' : 'No hay productos registrados')
+              : (searchTerm || selectedProviderFilter ? 'No products found' : 'No products registered')
+            }
           </p>
         </div>
       )}
@@ -513,6 +578,17 @@ export default function Stock({
         </div>
       )}
 
+      {/* Modal para seleccionar motivo de salida */}
+      <ExitReasonModal
+        isOpen={showExitReason}
+        onClose={() => {
+          setShowExitReason(false);
+          setPendingProductId(null);
+        }}
+        onConfirm={handleExitReasonSelect}
+        language={language}
+      />
+
       {/* Modal para ajuste rápido */}
       {confirmAdjust !== null && (
         <QuickAdjustModal
@@ -548,7 +624,9 @@ function QuickAdjustModal({ isOpen, type, language, onConfirm, onCancel }) {
   const handleSubmit = () => {
     const qty = parseInt(quantity) || 0;
     if (qty > 0) {
-      onConfirm(qty);
+      const reason = sessionStorage.getItem('exitReason') || '';
+      sessionStorage.removeItem('exitReason');
+      onConfirm(qty, reason);
       setQuantity('');
     }
   };

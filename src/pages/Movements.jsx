@@ -94,6 +94,7 @@ export default function Movements({ language = 'es', productsData = [] }) {
                   <th className="px-4 py-3 text-left text-gray-300 light-mode:text-gray-700 font-semibold">{language === 'es' ? 'Producto' : 'Product'}</th>
                   <th className="px-4 py-3 text-left text-gray-300 light-mode:text-gray-700 font-semibold">{language === 'es' ? 'Tipo' : 'Type'}</th>
                   <th className="px-4 py-3 text-right text-gray-300 light-mode:text-gray-700 font-semibold">{language === 'es' ? 'Cantidad' : 'Quantity'}</th>
+                  <th className="px-4 py-3 text-left text-gray-300 light-mode:text-gray-700 font-semibold">{language === 'es' ? 'Motivo' : 'Reason'}</th>
                   <th className="px-4 py-3 text-center text-gray-300 light-mode:text-gray-700 font-semibold">{language === 'es' ? 'Acciones' : 'Actions'}</th>
                 </tr>
               </thead>
@@ -137,6 +138,23 @@ export default function Movements({ language = 'es', productsData = [] }) {
                         isEntrada ? 'text-green-400' : 'text-red-400'
                       }`}>
                         {isEntrada ? '+' : '-'}{movement.cantidad}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300 light-mode:text-gray-900">
+                        {movement.motivo ? (
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            movement.motivo === 'venta' 
+                              ? 'bg-blue-900/30 text-blue-400'
+                              : movement.motivo === 'desecho'
+                              ? 'bg-yellow-900/30 text-yellow-400'
+                              : 'bg-purple-900/30 text-purple-400'
+                          }`}>
+                            {movement.motivo === 'venta' && (language === 'es' ? 'Venta' : 'Sale')}
+                            {movement.motivo === 'desecho' && (language === 'es' ? 'Desecho' : 'Disposal')}
+                            {movement.motivo === 'ajuste' && (language === 'es' ? 'Ajuste' : 'Adjustment')}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 light-mode:text-gray-400 text-xs">-</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
