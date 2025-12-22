@@ -486,25 +486,49 @@ export default function DatabasePage({
         <h1 className="text-3xl font-bold">Base de Datos</h1>
       </div>
 
-      {/* Info Card */}
-      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          📊 {recordCount.providers} proveedores • {recordCount.products} productos • 
-          {recordCount.stock} items de inventario • {recordCount.orders} pedidos
-        </p>
+      {/* Estado del Sistema - Tarjetas de Conteo */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
+          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
+            👥 Proveedores
+          </p>
+          <p className="text-3xl font-bold text-[#206DDA]">{recordCount.providers}</p>
+          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">registrados</p>
+        </div>
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
+          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
+            📦 Productos
+          </p>
+          <p className="text-3xl font-bold text-green-500">{recordCount.products}</p>
+          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">en catálogo</p>
+        </div>
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
+          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
+            📊 Inventario
+          </p>
+          <p className="text-3xl font-bold text-yellow-500">{recordCount.stock}</p>
+          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">ítems</p>
+        </div>
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-5 shadow-md hover:shadow-lg transition-shadow">
+          <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase tracking-wider mb-2">
+            📋 Pedidos
+          </p>
+          <p className="text-3xl font-bold text-blue-400">{recordCount.orders}</p>
+          <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-1">realizados</p>
+        </div>
       </div>
 
       {/* Grid de Secciones */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* SECCIÓN 1: EXPORTAR DATOS */}
-        <div className="bg-gray-900 dark:bg-gray-900 light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-4">
             <Download className="w-5 h-5 text-green-500" />
-            <h2 className="text-xl font-semibold">Exportar Datos</h2>
+            <h2 className="text-xl font-semibold">Copia de Seguridad</h2>
           </div>
 
           <p className="text-gray-400 light-mode:text-gray-600 text-sm mb-4">
-            Descarga tus datos en formato CSV o JSON
+            Exporta tus datos en formato CSV o JSON
           </p>
 
           <div className="space-y-3">
@@ -565,14 +589,14 @@ export default function DatabasePage({
         </div>
 
         {/* SECCIÓN 2: IMPORTAR DATOS */}
-        <div className="bg-gray-900 dark:bg-gray-900 light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
+        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-4">
             <Upload className="w-5 h-5 text-orange-500" />
-            <h2 className="text-xl font-semibold">Importar Datos</h2>
+            <h2 className="text-xl font-semibold">Restaurar Datos</h2>
           </div>
 
           <p className="text-gray-400 light-mode:text-gray-600 text-sm mb-4">
-            Carga un respaldo JSON para restaurar todos tus datos
+            Carga un archivo JSON para restaurar todos tus datos
           </p>
 
           <div className="space-y-4">
@@ -626,20 +650,20 @@ export default function DatabasePage({
       </div>
 
       {/* Sección de Ayuda */}
-      <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6">
-        <h3 className="font-semibold mb-3 flex items-center gap-2">
-          <span className="text-lg">💡</span> Tips
+      <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-md">
+        <h3 className="font-semibold mb-4 flex items-center gap-2 text-[#206DDA]">
+          <span className="text-lg">💡</span> Recomendaciones
         </h3>
         <ul className="text-sm text-gray-400 light-mode:text-gray-600 space-y-2">
-          <li>✓ Usa "Respaldo Total" regularmente para proteger tus datos</li>
-          <li>✓ Los archivos CSV abiertos en Excel reconocen caracteres especiales (UTF-8)</li>
-          <li>✓ El archivo JSON contiene toda tu información en un formato portable</li>
+          <li>✓ Descarga un respaldo total regularmente para proteger tus datos</li>
+          <li>✓ Los archivos CSV se abren fácilmente en Excel o Google Sheets</li>
+          <li>✓ El formato JSON es portable y funciona en cualquier dispositivo</li>
           <li>✓ Si cambias de dispositivo, solo necesitas cargar el archivo JSON</li>
         </ul>
       </div>
 
       {/* SECCIÓN 3: HERRAMIENTAS AVANZADAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+      <div style={{ display: 'none' }} className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
         {/* Importar Masivamente */}
         <div className="bg-gray-900 dark:bg-gray-900 light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-6 shadow-lg">
           <div className="flex items-center gap-2 mb-4">
@@ -727,28 +751,31 @@ export default function DatabasePage({
         </div>
       </div>
 
-      {/* SECCIÓN 4: RESTABLECER SISTEMA */}
+      {/* SECCIÓN 4: LIMPIAR BASE DE DATOS */}
       <div className="bg-red-900/20 border border-red-700/40 rounded-lg p-6 shadow-lg">
         <div className="flex items-center gap-2 mb-4">
           <AlertTriangle className="w-5 h-5 text-red-500" />
-          <h2 className="text-xl font-semibold text-red-400">Zona de Peligro</h2>
+          <h2 className="text-xl font-semibold text-red-400">Limpiar Base de Datos</h2>
         </div>
 
         <p className="text-gray-400 light-mode:text-gray-600 text-sm mb-4">
-          Esta acción eliminará TODOS los datos del sistema. Asegúrate de hacer un respaldo primero.
+          Esta acción eliminará TODOS los datos y reiniciará el sistema. <strong>Asegúrate de hacer un respaldo primero.</strong>
         </p>
 
         <div className="bg-red-950/30 border border-red-700/30 rounded-lg p-4 mb-4">
-          <p className="text-xs text-red-400">
-            ⚠️ <strong>ADVERTENCIA:</strong> Esta acción no se puede deshacer. Se eliminarán:
+          <p className="text-xs text-red-400 font-semibold mb-2">
+            ⚠️ Se eliminarán permanentemente:
           </p>
-          <ul className="text-xs text-red-300 mt-2 ml-4 space-y-1">
-            <li>• Todos los proveedores</li>
-            <li>• Todos los productos</li>
-            <li>• Todo el inventario</li>
-            <li>• Todos los pedidos</li>
-            <li>• Configuración de empresa</li>
+          <ul className="text-xs text-red-300 ml-4 space-y-1">
+            <li>✗ Todos los proveedores</li>
+            <li>✗ Todos los productos</li>
+            <li>✗ Todo el inventario</li>
+            <li>✗ Todos los pedidos</li>
+            <li>✗ Configuración de empresa</li>
           </ul>
+          <p className="text-xs text-red-400 mt-3 font-bold">
+            Esta acción NO se puede deshacer.
+          </p>
         </div>
 
         <button

@@ -403,39 +403,41 @@ export default function Orders({
                     : 'bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-200 hover:border-[#206DDA]/50'
                 }`}
               >
+                {/* Badge Recibido */}
                 {order.estado === 'Recibido' && (
-                  <div className="absolute top-3 right-12 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">✓ RECIBIDO</div>
+                  <div className="absolute top-4 right-4 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-md">
+                    ✓ RECIBIDO
+                  </div>
                 )}
-                {/* Encabezado de tarjeta */}
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-white light-mode:text-gray-900">
-                      {order.proveedor || 'Sin proveedor'}
-                    </h3>
-                    <p className="text-sm text-[#206DDA] font-semibold mt-1">
-                      {order.id}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setConfirmDelete(order.id)}
-                    className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4 text-red-400 light-mode:text-red-600" />
-                  </button>
-                </div>
 
-                {/* Contenido de tarjeta */}
-                <div className="space-y-3 mb-4">
-                  {/* Fecha */}
-                  <div className="p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-1 uppercase">
-                      Fecha
-                    </p>
-                    <p className="text-white light-mode:text-gray-900 font-semibold">
-                      {formatDate(order.fecha)}
+                {/* Estructura: Header - Content - Actions */}
+                <div className="flex flex-col h-full">
+                  {/* Encabezado */}
+                  <div className="mb-4 pb-4 border-b border-gray-600 light-mode:border-gray-300">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white light-mode:text-gray-900 mb-1">
+                          {order.proveedor || 'Sin proveedor'}
+                        </h3>
+                        <p className="text-sm text-[#206DDA] font-semibold">
+                          ID: {order.id}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setConfirmDelete(order.id)}
+                        className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors ml-2"
+                        title="Eliminar pedido"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-400 light-mode:text-red-600" />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-2">
+                      📅 {formatDate(order.fecha)}
                     </p>
                   </div>
 
+                  {/* Contenido de tarjeta */}
+                  <div className="space-y-3 mb-6 flex-1">
                   {/* Estado */}
                   <div className="p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg">
                     <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase">
@@ -473,35 +475,39 @@ export default function Orders({
                       </ul>
                     </div>
                   )}
-                </div>
+                  </div>
 
-                {/* Botones de acción */}
-                <div className="flex gap-2">
-                  {order.estado !== 'Recibido' && (
-                    <button
-                      onClick={() => setConfirmReceive(order.id)}
-                      className="flex-1 flex items-center justify-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
-                    >
-                      <Check className="w-4 h-4" />
-                      Recibir Mercancía
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      const phone = getProviderPhone(order.proveedor);
-                      if (phone) {
-                        const message = generateWhatsAppMessage(order);
-                        window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
-                      } else {
-                        copyToClipboard(order);
-                      }
-                    }}
-                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
-                    title="Enviar por WhatsApp"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    WhatsApp
-                  </button>
+                  {/* Botones de acción - Fila dedicada */}
+                  <div className="pt-4 border-t border-gray-600 light-mode:border-gray-300">
+                    <div className="flex gap-3">
+                      {order.estado !== 'Recibido' && (
+                        <button
+                          onClick={() => setConfirmReceive(order.id)}
+                          className="flex-1 flex items-center justify-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-3 py-2 rounded-lg font-semibold transition-all text-sm"
+                          title="Marcar como recibido"
+                        >
+                          <Check className="w-4 h-4" />
+                          Recibir
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          const phone = getProviderPhone(order.proveedor);
+                          if (phone) {
+                            const message = generateWhatsAppMessage(order);
+                            window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+                          } else {
+                            copyToClipboard(order);
+                          }
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg font-semibold transition-all text-sm"
+                        title="Enviar por WhatsApp"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        WhatsApp
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
