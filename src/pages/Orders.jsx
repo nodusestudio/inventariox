@@ -1,4 +1,4 @@
-import { Search, Plus, X, Trash2, Check, AlertCircle } from 'lucide-react';
+import { Search, Plus, X, Trash2, Check, AlertCircle, MessageCircle } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { useState, useEffect } from 'react';
 
@@ -130,6 +130,14 @@ export default function Orders({
     }
   };
 
+  // Eliminar pedido
+  const handleDeleteOrder = (orderId) => {
+    const updatedOrders = orders.filter(o => o.id !== orderId);
+    setOrders(updatedOrders);
+    localStorage.setItem('inventariox_orders', JSON.stringify(updatedOrders));
+    setConfirmDelete(null);
+  };
+
   // Recibir mercancía - actualizar inventario
   const handleReceiveOrder = (orderId) => {
     const order = orders.find(o => o.id === orderId);
@@ -159,6 +167,7 @@ export default function Orders({
       o.id === orderId ? { ...o, estado: 'Recibido' } : o
     );
     setOrders(updatedOrders);
+    localStorage.setItem('inventariox_orders', JSON.stringify(updatedOrders));
     setConfirmReceive(null);
   };
 
@@ -178,6 +187,35 @@ export default function Orders({
 
   const getEstadoLabel = (estado) => {
     return estado === 'Recibido' ? '✓ Recibido' : '⏳ Pendiente';
+  };
+
+  // Generar mensaje de WhatsApp
+  const generateWhatsAppMessage = (order) => {
+    const itemsList = order.items
+      .map(item => `• ${item.nombre}: ${item.cantidadPedir} unidades`)
+      .join('%0A');
+    
+    const message = `Hola, le escribo respecto al pedido: ${order.id}%0A%0AProveedor: ${order.proveedor}%0AFecha: ${formatDate(order.fecha)}%0A%0AProductos:%0A${itemsList}%0A%0ATotal: $${formatCurrency(order.total)}%0A%0AGracias!`;
+    
+    return message;
+  };
+
+  // Copiar al portapapeles
+  const copyToClipboard = (order) => {
+    const itemsList = order.items
+      .map(item => `• ${item.nombre}: ${item.cantidadPedir} unidades`)
+      .join('\n');
+    
+    const text = `Hola, le escribo respecto al pedido: ${order.id}\n\nProveedor: ${order.proveedor}\nFecha: ${formatDate(order.fecha)}\n\nProductos:\n${itemsList}\n\nTotal: $${formatCurrency(order.total)}\n\nGracias!`;
+    
+    navigator.clipboard.writeText(text);
+    alert('Mensaje copiado al portapapeles');
+  };
+
+  // Obtener número del proveedor
+  const getProviderPhone = (providerName) => {
+    const provider = providers.find(p => p.nombre === providerName);
+    return provider?.whatsapp || null;
   };
 
   return (
@@ -359,8 +397,15 @@ export default function Orders({
             {filteredOrders.map(order => (
               <div 
                 key={order.id}
-                className="bg-[#1f2937] light-mode:bg-white rounded-lg border border-gray-700 light-mode:border-gray-200 p-6 hover:border-[#206DDA]/50 transition-all"
+                className={`rounded-lg p-6 transition-all relative ${
+                  order.estado === 'Recibido'
+                    ? 'bg-[#1f2937]/80 light-mode:bg-green-50 border-2 border-green-500 shadow-lg shadow-green-500/20'
+                    : 'bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-200 hover:border-[#206DDA]/50'
+                }`}
               >
+                {order.estado === 'Recibido' && (
+                  <div className="absolute top-3 right-12 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold">✓ RECIBIDO</div>
+                )}
                 {/* Encabezado de tarjeta */}
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -431,15 +476,33 @@ export default function Orders({
                 </div>
 
                 {/* Botones de acción */}
-                {order.estado !== 'Recibido' && (
+                <div className="flex gap-2">
+                  {order.estado !== 'Recibido' && (
+                    <button
+                      onClick={() => setConfirmReceive(order.id)}
+                      className="flex-1 flex items-center justify-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+                    >
+                      <Check className="w-4 h-4" />
+                      Recibir Mercancía
+                    </button>
+                  )}
                   <button
-                    onClick={() => setConfirmReceive(order.id)}
-                    className="w-full flex items-center justify-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+                    onClick={() => {
+                      const phone = getProviderPhone(order.proveedor);
+                      if (phone) {
+                        const message = generateWhatsAppMessage(order);
+                        window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+                      } else {
+                        copyToClipboard(order);
+                      }
+                    }}
+                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-all"
+                    title="Enviar por WhatsApp"
                   >
-                    <Check className="w-4 h-4" />
-                    Recibir Mercancía
+                    <MessageCircle className="w-4 h-4" />
+                    WhatsApp
                   </button>
-                )}
+                </div>
               </div>
             ))}
           </div>
