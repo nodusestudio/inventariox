@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './config/firebase';
+import AuthScreen from './components/AuthScreen';
 import Sidebar from './components/Sidebar';
 import Dashboard from './pages/Dashboard';
 import Stock from './pages/Stock';
@@ -7,425 +10,210 @@ import Providers from './pages/Providers';
 import Orders from './pages/Orders';
 import Settings from './pages/Settings';
 import DatabasePage from './pages/Database';
+import Toast from './components/Toast';
+import { getProducts, getStock, getProviders, getOrders, getMovements, getCompanyData } from './services/firebaseService';
 
 // ============================================================================
-// DATOS POR DEFECTO
-// ============================================================================
-
-const DEFAULT_COMPANY = {
-  nombreEmpresa: 'MI EMPRESA',
-  nitRut: '12.345.678-9',
-  direccion: 'Calle Principal 123, Ciudad',
-};
-
-const DEFAULT_PRODUCTS = [
-  {
-    id: 1,
-    nombre: 'LAPTOP DELL XPS',
-    proveedor: 'DISTRIBUIDORA ABC',
-    proveedorId: 1,
-    unidad: 'UNIDADES',
-    costo: 800000,
-  },
-  {
-    id: 2,
-    nombre: 'MONITOR LG 27"',
-    proveedor: 'IMPORTACIONES GLOBAL',
-    proveedorId: 2,
-    unidad: 'UNIDADES',
-    costo: 250000,
-  },
-  {
-    id: 3,
-    nombre: 'TECLADO MECÁNICO RGB',
-    proveedor: 'LOGÍSTICA DEL SUR',
-    proveedorId: 3,
-    unidad: 'UNIDADES',
-    costo: 85000,
-  },
-  {
-    id: 4,
-    nombre: 'MOUSE INALÁMBRICO',
-    proveedor: 'DISTRIBUIDORA ABC',
-    proveedorId: 1,
-    unidad: 'UNIDADES',
-    costo: 35000,
-  },
-  {
-    id: 5,
-    nombre: 'CABLE HDMI 2.1',
-    proveedor: 'IMPORTACIONES GLOBAL',
-    proveedorId: 2,
-    unidad: 'METROS',
-    costo: 12000,
-  },
-  {
-    id: 6,
-    nombre: 'PASTA TÉRMICA PREMIUM',
-    proveedor: 'LOGÍSTICA DEL SUR',
-    proveedorId: 3,
-    unidad: 'TUBOS',
-    costo: 15000,
-  },
-];
-
-const DEFAULT_PROVIDERS = [
-  { id: 1, nombre: 'DISTRIBUIDORA ABC', contacto: 'JUAN PÉREZ', email: 'JUAN@ABC.COM', whatsapp: '56912345678' },
-  { id: 2, nombre: 'IMPORTACIONES GLOBAL', contacto: 'MARÍA GARCÍA', email: 'MARIA@GLOBAL.COM', whatsapp: '56987654321' },
-  { id: 3, nombre: 'LOGÍSTICA DEL SUR', contacto: 'CARLOS LÓPEZ', email: 'CARLOS@SUR.COM', whatsapp: '56955555555' },
-];
-
-const DEFAULT_STOCK = [
-  { id: 1, productoId: 1, stockActual: 5, stockMinimo: 2, stockCompra: 10 },
-  { id: 2, productoId: 2, stockActual: 8, stockMinimo: 3, stockCompra: 15 },
-  { id: 3, productoId: 3, stockActual: 12, stockMinimo: 5, stockCompra: 20 },
-  { id: 4, productoId: 4, stockActual: 3, stockMinimo: 1, stockCompra: 8 },
-  { id: 5, productoId: 5, stockActual: 20, stockMinimo: 10, stockCompra: 30 },
-  { id: 6, productoId: 6, stockActual: 6, stockMinimo: 2, stockCompra: 10 },
-];
-
-// ============================================================================
-// FUNCIONES DE INICIALIZACIÓN BLINDADAS CON TRY-CATCH
-// ============================================================================
-
-/**
- * Intenta cargar datos desde localStorage de forma segura
- * Si falla o está vacío, retorna un valor por defecto
- */
-const loadFromLocalStorage = (key, defaultValue) => {
-  try {
-    const stored = localStorage.getItem(key);
-    if (!stored) return defaultValue;
-    
-    const parsed = JSON.parse(stored);
-    
-    // Validar que sea un array si se espera un array
-    if (Array.isArray(defaultValue)) {
-      return Array.isArray(parsed) ? parsed : defaultValue;
-    }
-    
-    // Validar que sea un objeto si se espera un objeto
-    if (typeof defaultValue === 'object' && defaultValue !== null) {
-      return typeof parsed === 'object' && parsed !== null ? parsed : defaultValue;
-    }
-    
-    return parsed;
-  } catch (error) {
-    console.error(`Error al cargar ${key} desde localStorage:`, error);
-    return defaultValue;
-  }
-};
-
-/**
- * Guarda datos en localStorage de forma segura
- * Si falla, no rompe la aplicación
- */
-const saveToLocalStorage = (key, value) => {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (error) {
-    console.error(`Error al guardar ${key} en localStorage:`, error);
-  }
-};
-
-// ============================================================================
-// COMPONENTE APP
+// COMPONENTE PRINCIPAL CON FIREBASE
 // ============================================================================
 
 export default function App() {
-  // Estados de navegación y tema
-  const [activeTab, setActiveTab] = useState('Panel');
-  const [theme, setTheme] = useState('dark');
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState('dashboard');
   const [language, setLanguage] = useState('es');
+  const [toast, setToast] = useState(null);
 
-  // ========================================================================
-  // ESTADO: CONFIGURACIÓN DE EMPRESA
-  // ========================================================================
-  const [companyData, setCompanyDataState] = useState(() => {
-    return loadFromLocalStorage('fodexa_settings', DEFAULT_COMPANY);
+  // Estados de datos - ahora se cargarán desde Firestore
+  const [productsData, setProductsData] = useState([]);
+  const [stockData, setStockData] = useState([]);
+  const [providersData, setProvidersData] = useState([]);
+  const [ordersData, setOrdersData] = useState([]);
+  const [companyData, setCompanyData] = useState({
+    nombreEmpresa: 'MI EMPRESA',
+    nitRut: '12.345.678-9',
+    direccion: 'Calle Principal 123, Ciudad',
   });
 
-  const setCompanyData = (data) => {
-    if (!data) return;
-    try {
-      setCompanyDataState(data);
-      saveToLocalStorage('fodexa_settings', data);
-    } catch (error) {
-      console.error('Error al actualizar companyData:', error);
-    }
-  };
-
-  // ========================================================================
-  // ESTADO: PROVEEDORES
-  // ========================================================================
-  const [providersData, setProvidersDataState] = useState(() => {
-    return loadFromLocalStorage('inventariox_providers', DEFAULT_PROVIDERS);
-  });
-
-  const setProvidersData = (data) => {
-    if (!Array.isArray(data)) {
-      console.error('setProvidersData: data no es un array', data);
-      return;
-    }
-    try {
-      setProvidersDataState(data);
-      saveToLocalStorage('inventariox_providers', data);
-    } catch (error) {
-      console.error('Error al actualizar providersData:', error);
-    }
-  };
-
-  // ========================================================================
-  // ESTADO: PRODUCTOS
-  // ========================================================================
-  const [productsData, setProductsDataState] = useState(() => {
-    return loadFromLocalStorage('inventariox_products', DEFAULT_PRODUCTS);
-  });
-
-  const setProductsData = (data) => {
-    if (!Array.isArray(data)) {
-      console.error('setProductsData: data no es un array', data);
-      return;
-    }
-    try {
-      setProductsDataState(data);
-      saveToLocalStorage('inventariox_products', data);
-    } catch (error) {
-      console.error('Error al actualizar productsData:', error);
-    }
-  };
-
-  // ========================================================================
-  // ESTADO: STOCK
-  // ========================================================================
-  const [stockData, setStockDataState] = useState(() => {
-    return loadFromLocalStorage('inventariox_stock', DEFAULT_STOCK);
-  });
-
-  const setStockData = (data) => {
-    if (!Array.isArray(data)) {
-      console.error('setStockData: data no es un array', data);
-      return;
-    }
-    try {
-      setStockDataState(data);
-      saveToLocalStorage('inventariox_stock', data);
-    } catch (error) {
-      console.error('Error al actualizar stockData:', error);
-    }
-  };
-
-  // ========================================================================
-  // ESTADO: PEDIDOS
-  // ========================================================================
-  const [ordersData, setOrdersDataState] = useState(() => {
-    return loadFromLocalStorage('inventariox_orders', []);
-  });
-
-  const setOrdersData = (data) => {
-    if (!Array.isArray(data)) {
-      console.error('setOrdersData: data no es un array', data);
-      return;
-    }
-    try {
-      setOrdersDataState(data);
-      saveToLocalStorage('inventariox_orders', data);
-    } catch (error) {
-      console.error('Error al actualizar ordersData:', error);
-    }
-  };
-
-  // ========================================================================
-  // EFECTOS: GUARDADO INMEDIATO EN LOCALSTORAGE
-  // ========================================================================
-
-  // Guardar companyData inmediatamente si cambia
+  // Verificar autenticación
   useEffect(() => {
-    try {
-      saveToLocalStorage('fodexa_settings', companyData);
-    } catch (error) {
-      console.error('Error guardando companyData:', error);
-    }
-  }, [companyData]);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
 
-  // Guardar providersData inmediatamente si cambia
-  useEffect(() => {
-    try {
-      if (Array.isArray(providersData)) {
-        saveToLocalStorage('inventariox_providers', providersData);
-      }
-    } catch (error) {
-      console.error('Error guardando providersData:', error);
-    }
-  }, [providersData]);
-
-  // Guardar productsData inmediatamente si cambia
-  useEffect(() => {
-    try {
-      if (Array.isArray(productsData)) {
-        saveToLocalStorage('inventariox_products', productsData);
-      }
-    } catch (error) {
-      console.error('Error guardando productsData:', error);
-    }
-  }, [productsData]);
-
-  // Guardar stockData inmediatamente si cambia
-  useEffect(() => {
-    try {
-      if (Array.isArray(stockData)) {
-        saveToLocalStorage('inventariox_stock', stockData);
-      }
-    } catch (error) {
-      console.error('Error guardando stockData:', error);
-    }
-  }, [stockData]);
-
-  // Guardar ordersData inmediatamente si cambia
-  useEffect(() => {
-    try {
-      if (Array.isArray(ordersData)) {
-        saveToLocalStorage('inventariox_orders', ordersData);
-      }
-    } catch (error) {
-      console.error('Error guardando ordersData:', error);
-    }
-  }, [ordersData]);
-
-  // ========================================================================
-  // EFECTOS: TEMA Y UTILIDADES
-  // ========================================================================
-
-  // Aplicar tema al elemento raíz del documento
-  useEffect(() => {
-    try {
-      if (theme === 'light') {
-        document.documentElement.classList.add('light-mode');
-      } else {
-        document.documentElement.classList.remove('light-mode');
-      }
-    } catch (error) {
-      console.error('Error al aplicar tema:', error);
-    }
-  }, [theme]);
-
-  // Prevenir zoom no deseado en inputs de mobile
-  useEffect(() => {
-    try {
-      const inputs = document.querySelectorAll('input, select, textarea');
-      inputs.forEach(input => {
-        input.style.fontSize = '16px';
-      });
-    } catch (error) {
-      console.error('Error al aplicar estilos a inputs:', error);
-    }
+    return unsubscribe;
   }, []);
 
-  // ========================================================================
-  // RENDERIZADO CONDICIONAL DEL CONTENIDO
-  // ========================================================================
+  // Cargar datos desde Firestore cuando el usuario se autentica
+  useEffect(() => {
+    if (!user) {
+      setDataLoading(false);
+      return;
+    }
 
-  const renderContent = () => {
-    try {
-      switch (activeTab) {
-        case 'Panel':
-          return <Dashboard inventoryData={productsData || []} productsData={productsData || []} stockData={stockData || []} language={language} />;
-        case 'Inventario':
-          return (
-            <Stock
-              productsData={productsData || []}
-              stockData={stockData || []}
-              setStockData={setStockData}
-              language={language}
-              providers={providersData || []}
-            />
-          );
-        case 'Movimientos':
-          return (
-            <Movements
-              language={language}
-              productsData={productsData || []}
-            />
-          );
-        case 'Proveedores':
-          return (
-            <Providers
-              language={language}
-              providersData={providersData || []}
-              setProvidersData={setProvidersData}
-            />
-          );
-        case 'Pedidos':
-          return (
-            <Orders
-              language={language}
-              productsData={productsData || []}
-              providers={providersData || []}
-              stockData={stockData || []}
-              companyData={companyData || DEFAULT_COMPANY}
-              ordersData={ordersData || []}
-              setOrdersData={setOrdersData}
-            />
-          );
-        case 'Base de Datos':
-          return (
-            <DatabasePage
-              providersData={providersData || []}
-              productsData={productsData || []}
-              stockData={stockData || []}
-              ordersData={ordersData || []}
-              companyData={companyData || DEFAULT_COMPANY}
-              setProvidersData={setProvidersData}
-              setProductsData={setProductsData}
-              setStockData={setStockData}
-              setOrdersData={setOrdersData}
-              setCompanyData={setCompanyData}
-            />
-          );
-        case 'Configuración':
-          return (
-            <Settings
-              theme={theme}
-              setTheme={setTheme}
-              language={language}
-              setLanguage={setLanguage}
-              companyData={companyData || DEFAULT_COMPANY}
-              setCompanyData={setCompanyData}
-            />
-          );
-        default:
-          return <Dashboard inventoryData={productsData || []} productsData={productsData || []} stockData={stockData || []} language={language} />;
+    setDataLoading(true);
+
+    const loadData = async () => {
+      try {
+        const [products, stock, providers, orders, movements, company] = await Promise.all([
+          getProducts(user.uid),
+          getStock(user.uid),
+          getProviders(user.uid),
+          getOrders(user.uid),
+          getMovements(user.uid),
+          getCompanyData(user.uid)
+        ]);
+
+        setProductsData(products || []);
+        setStockData(stock || []);
+        setProvidersData(providers || []);
+        setOrdersData(orders || []);
+        setCompanyData(company || {
+          nombreEmpresa: 'MI EMPRESA',
+          nitRut: '12.345.678-9',
+          direccion: 'Calle Principal 123, Ciudad',
+        });
+        setDataLoading(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        showToast('❌ Error cargando datos', 'error');
+        setDataLoading(false);
       }
+    };
+
+    loadData();
+  }, [user]);
+
+  // Cerrar sesión
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setCurrentPage('dashboard');
+      showToast('✓ Sesión cerrada correctamente', 'success');
     } catch (error) {
-      console.error('Error al renderizar contenido:', error);
-      return (
-        <div className="p-4">
-          <h2 className="text-red-500 font-bold">Error al cargar la página</h2>
-          <p>{error.message}</p>
-        </div>
-      );
+      console.error('Error al cerrar sesión:', error);
+      showToast('❌ Error al cerrar sesión', 'error');
     }
   };
 
-  // ========================================================================
-  // RENDER PRINCIPAL
-  // ========================================================================
+  // Mostrar notificación
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
+
+  // Si está cargando la autenticación
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-[#206DDA] mx-auto mb-4"></div>
+          <p className="text-white text-lg font-semibold">Cargando InventarioX...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si no hay usuario, mostrar pantalla de autenticación
+  if (!user) {
+    return <AuthScreen onAuthSuccess={setUser} />;
+  }
+
+  // Páginas disponibles
+  const pages = {
+    dashboard: (
+      <Dashboard
+        language={language}
+        productsData={productsData}
+        stockData={stockData}
+        providersData={providersData}
+        ordersData={ordersData}
+        companyData={companyData}
+        user={user}
+        isLoading={dataLoading}
+      />
+    ),
+    stock: (
+      <Stock
+        user={user}
+        language={language}
+        onShowToast={showToast}
+      />
+    ),
+    movements: (
+      <Movements
+        language={language}
+        user={user}
+      />
+    ),
+    providers: (
+      <Providers
+        providersData={providersData}
+        setProvidersData={setProvidersData}
+        language={language}
+        user={user}
+      />
+    ),
+    orders: (
+      <Orders
+        language={language}
+        user={user}
+        onShowToast={showToast}
+      />
+    ),
+    settings: (
+      <Settings
+        companyData={companyData}
+        setCompanyData={setCompanyData}
+        language={language}
+        setLanguage={setLanguage}
+        user={user}
+      />
+    ),
+    database: (
+      <DatabasePage
+        providersData={providersData}
+        productsData={productsData}
+        stockData={stockData}
+        ordersData={ordersData}
+        companyData={companyData}
+        setProvidersData={setProvidersData}
+        setProductsData={setProductsData}
+        setStockData={setStockData}
+        setOrdersData={setOrdersData}
+        setCompanyData={setCompanyData}
+        user={user}
+      />
+    ),
+  };
 
   return (
-    <div
-      className={`${
-        theme === 'light'
-          ? 'light-mode bg-gray-50 text-gray-900'
-          : 'dark-mode bg-[#111827] text-white'
-      } min-h-screen w-full transition-colors duration-300 flex`}
-    >
+    <div className="flex h-screen bg-[#0f172a]">
       {/* Sidebar */}
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} language={language} />
-      
+      <Sidebar
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        user={user}
+        onLogout={handleLogout}
+      />
+
       {/* Contenido Principal */}
-      <div className="flex-1 overflow-auto">
-        <div className="w-full h-full p-4 md:p-6">{renderContent()}</div>
-      </div>
+      <main className="flex-1 overflow-auto bg-gradient-to-br from-[#0f172a] to-[#1f2937]">
+        <div className="p-6">
+          {pages[currentPage] || pages.dashboard}
+        </div>
+      </main>
+
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

@@ -3,7 +3,16 @@ import { Search, Plus, Edit2, Trash2, X, AlertCircle, ChevronUp, ChevronDown } f
 import TableContainer from '../components/TableContainer';
 import ConfirmationModal from '../components/ConfirmationModal';
 import ExitReasonModal from '../components/ExitReasonModal';
+import Toast from '../components/Toast';
 import { t } from '../utils/translations';
+import {
+  getProducts,
+  addProduct,
+  updateProduct,
+  deleteProduct,
+  addMovement,
+  getProviders
+} from '../services/firebaseService';
 
 // Función para formatear números como moneda
 const formatCurrency = (value) => {
@@ -15,25 +24,54 @@ const formatCurrency = (value) => {
 };
 
 export default function Stock({ 
-  productsData: initialProducts = [], 
-  stockData = [], 
-  setStockData = () => {}, 
+  user,
   language = 'es', 
-  providers = [],
-  setProductsData = () => {}
+  onShowToast = () => {}
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProviderFilter, setSelectedProviderFilter] = useState('');
-  const [localProducts, setLocalProducts] = useState(initialProducts);
-  const [localStockData, setLocalStockData] = useState(stockData);
+  const [products, setProducts] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmAdjust, setConfirmAdjust] = useState(null);
-  const [adjustType, setAdjustType] = useState(''); // 'entrada' o 'salida'
-  const [showExitReason, setShowExitReason] = useState(false); // Modal para motivos de salida
-  const [pendingProductId, setPendingProductId] = useState(null); // ID de producto esperando motivo
+  const [adjustType, setAdjustType] = useState('');
+  const [showExitReason, setShowExitReason] = useState(false);
+  const [pendingProductId, setPendingProductId] = useState(null);
+  const [toast, setToast] = useState(null);
+
+  // Mostrar notificación Toast
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    onShowToast?.(message, type);
+  };
+
+  // Cargar productos y proveedores al montar el componente
+  useEffect(() => {
+    if (!user) return;
+    
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [productsData, providersData] = await Promise.all([
+          getProducts(user.uid),
+          getProviders(user.uid)
+        ]);
+        setProducts(productsData);
+        setProviders(providersData);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        showToast('❌ Error al cargar los datos', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user]);
 
   // Formulario para nuevo producto
   const [formData, setFormData] = useState({
@@ -47,16 +85,11 @@ export default function Stock({
   });
 
   // Filtrar datos por proveedor y búsqueda
-  const filteredProducts = localProducts.filter(product => {
+  const filteredProducts = products.filter(product => {
     const matchProvider = selectedProviderFilter === '' || product.proveedor === selectedProviderFilter;
     const matchSearch = product.nombre.toLowerCase().includes(searchTerm.toLowerCase());
     return matchProvider && matchSearch;
   });
-
-  // Obtener información de stock de un producto
-  const getStockInfo = (productId) => {
-    return localStockData.find(s => s.productoId === productId);
-  };
 
   // Abrir modal para nuevo producto
   const handleAddProduct = () => {
@@ -76,15 +109,14 @@ export default function Stock({
 
   // Editar producto
   const handleEditProduct = (product) => {
-    const stockInfo = getStockInfo(product.id);
     setFormData({
       nombre: product.nombre,
       proveedor: product.proveedor,
       unidad: product.unidad,
       costo: product.costo,
-      stockActual: stockInfo?.stockActual || '0',
-      stockMinimo: stockInfo?.stockMinimo || '1',
-      stockCompra: stockInfo?.stockCompra || '10'
+      stockActual: product.stockActual?.toString() || '0',
+      stockMinimo: product.stockMinimo?.toString() || '1',
+      stockCompra: product.stockCompra?.toString() || '10'
     });
     setIsEditing(true);
     setEditingId(product.id);
@@ -92,10 +124,29 @@ export default function Stock({
   };
 
   // Validar y guardar producto
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     if (!formData.nombre || !formData.proveedor || !formData.unidad || formData.costo === '') {
       alert(language === 'es' ? 'Por favor completa todos los campos requeridos' : 'Please fill all required fields');
       return;
+    }
+
+    // Validar cantidades negativas
+    const stockActualVal = parseInt(formData.stockActual) || 0;
+    const stockMinimoVal = parseInt(formData.stockMinimo) || 1;
+    const stockCompraVal = parseInt(formData.stockCompra) || 10;
+
+    if (stockActualVal < 0 || stockMinimoVal < 0 || stockCompraVal < 0) {
+      alert(language === 'es' ? '❌ Las cantidades no pueden ser negativas' : '❌ Quantities cannot be negative');
+      return;
+    }
+
+    if (stockActualVal < stockMinimoVal) {
+      const continuar = window.confirm(
+        language === 'es' 
+          ? `⚠️ El stock actual (${stockActualVal}) es menor al stock mínimo (${stockMinimoVal}). ¿Deseas continuar?`
+          : `⚠️ Current stock (${stockActualVal}) is less than minimum stock (${stockMinimoVal}). Continue?`
+      );
+      if (!continuar) return;
     }
 
     const productData = {
@@ -103,87 +154,57 @@ export default function Stock({
       proveedor: formData.proveedor.toUpperCase(),
       unidad: formData.unidad.toUpperCase(),
       costo: Math.round(parseFloat(formData.costo) || 0),
+      stockActual: parseInt(formData.stockActual) || 0,
+      stockMinimo: parseInt(formData.stockMinimo) || 1,
+      stockCompra: parseInt(formData.stockCompra) || 10
     };
 
-    let updatedProducts;
-    let newProductId;
-
-    if (isEditing) {
-      updatedProducts = localProducts.map(p =>
-        p.id === editingId ? { ...productData, id: p.id } : p
-      );
-      newProductId = editingId;
-    } else {
-      newProductId = Math.max(...localProducts.map(p => p.id), 0) + 1;
-      updatedProducts = [...localProducts, { ...productData, id: newProductId }];
+    try {
+      if (isEditing) {
+        await updateProduct(user.uid, editingId, productData);
+        // Actualizar lista local
+        setProducts(products.map(p => 
+          p.id === editingId ? { ...p, ...productData } : p
+        ));
+        showToast('✓ Producto actualizado exitosamente', 'success');
+      } else {
+        const newId = await addProduct(user.uid, productData);
+        // Agregar al estado local
+        setProducts([...products, { id: newId, ...productData }]);
+        showToast('✓ Producto creado exitosamente', 'success');
+      }
+      setShowModal(false);
+    } catch (error) {
+      console.error('Error saving product:', error);
+      showToast('❌ Error al guardar el producto', 'error');
     }
-
-    // Actualizar stock
-    const stockActual = parseInt(formData.stockActual) || 0;
-    const stockMinimo = parseInt(formData.stockMinimo) || 1;
-    const stockCompra = parseInt(formData.stockCompra) || 10;
-
-    let updatedStock;
-    const existingStock = localStockData.find(s => s.productoId === newProductId);
-
-    if (existingStock) {
-      updatedStock = localStockData.map(s =>
-        s.productoId === newProductId 
-          ? { ...s, stockActual, stockMinimo, stockCompra }
-          : s
-      );
-    } else {
-      updatedStock = [...localStockData, {
-        id: Math.max(...localStockData.map(s => s.id), 0) + 1,
-        productoId: newProductId,
-        stockActual,
-        stockMinimo,
-        stockCompra
-      }];
-    }
-
-    setLocalProducts(updatedProducts);
-    setLocalStockData(updatedStock);
-    setProductsData(updatedProducts);
-    setStockData(updatedStock);
-    localStorage.setItem('inventariox_products', JSON.stringify(updatedProducts));
-    localStorage.setItem('inventariox_stock', JSON.stringify(updatedStock));
-
-    setShowModal(false);
   };
 
   // Eliminar producto
-  const handleDeleteProduct = (id) => {
-    const updated = localProducts.filter(p => p.id !== id);
-    const updatedStock = localStockData.filter(s => s.productoId !== id);
-    
-    setLocalProducts(updated);
-    setLocalStockData(updatedStock);
-    setProductsData(updated);
-    setStockData(updatedStock);
-    localStorage.setItem('inventariox_products', JSON.stringify(updated));
-    localStorage.setItem('inventariox_stock', JSON.stringify(updatedStock));
-    setConfirmDelete(null);
+  const handleDeleteProduct = async (id) => {
+    try {
+      await deleteProduct(user.uid, id);
+      setProducts(products.filter(p => p.id !== id));
+      setConfirmDelete(null);
+      showToast('✓ Producto eliminado', 'success');
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      showToast('❌ Error al eliminar el producto', 'error');
+    }
   };
 
   // Registrar movimiento
-  const registerMovement = (productName, type, quantity, reason = '') => {
-    const movements = JSON.parse(localStorage.getItem('inventariox_movements') || '[]');
-    const movementData = {
-      id: Date.now(),
-      fechaHora: new Date().toISOString(),
-      productName: productName,
-      tipo: type, // 'entrada' o 'salida'
-      cantidad: quantity
-    };
-    
-    // Agregar motivo solo si es una salida
-    if (type === 'salida' && reason) {
-      movementData.motivo = reason;
+  const registerMovement = async (productName, type, quantity, reason = '') => {
+    try {
+      await addMovement(user.uid, {
+        productName,
+        tipo: type,
+        cantidad: quantity,
+        motivo: type === 'salida' ? reason : ''
+      });
+    } catch (error) {
+      console.error('Error registering movement:', error);
     }
-    
-    movements.push(movementData);
-    localStorage.setItem('inventariox_movements', JSON.stringify(movements));
   };
 
   // Ajustar stock rápidamente
@@ -201,32 +222,30 @@ export default function Stock({
   };
 
   // Procesar ajuste de stock
-  const handleProcessAdjust = (quantity, reason = '') => {
-    const stockItem = localStockData.find(s => s.productoId === confirmAdjust);
-    if (!stockItem) return;
+  const handleProcessAdjust = async (quantity, reason = '') => {
+    const productToAdjust = products.find(p => p.id === confirmAdjust);
+    if (!productToAdjust) return;
 
     const newStock = adjustType === 'entrada'
-      ? stockItem.stockActual + quantity
-      : Math.max(0, stockItem.stockActual - quantity);
+      ? productToAdjust.stockActual + quantity
+      : Math.max(0, productToAdjust.stockActual - quantity);
 
-    const updatedStock = localStockData.map(s =>
-      s.productoId === confirmAdjust
-        ? { ...s, stockActual: newStock }
-        : s
-    );
+    const updatedProduct = { ...productToAdjust, stockActual: newStock };
 
-    setLocalStockData(updatedStock);
-    setStockData(updatedStock);
-    localStorage.setItem('inventariox_stock', JSON.stringify(updatedStock));
+    try {
+      await updateProduct(user.uid, confirmAdjust, { stockActual: newStock });
+      setProducts(products.map(p => p.id === confirmAdjust ? updatedProduct : p));
 
-    // Registrar movimiento
-    const product = localProducts.find(p => p.id === confirmAdjust);
-    if (product) {
-      registerMovement(product.nombre, adjustType, quantity, reason);
+      // Registrar movimiento
+      await registerMovement(productToAdjust.nombre, adjustType, quantity, reason);
+
+      setConfirmAdjust(null);
+      setAdjustType('');
+      showToast(`✓ Stock ${adjustType === 'entrada' ? 'ingresado' : 'reducido'} exitosamente`, 'success');
+    } catch (error) {
+      console.error('Error adjusting stock:', error);
+      showToast('❌ Error al ajustar el stock', 'error');
     }
-
-    setConfirmAdjust(null);
-    setAdjustType('');
   };
 
   // Manejar selección de motivo de salida
@@ -274,9 +293,8 @@ export default function Stock({
       key: 'stockActual',
       label: language === 'es' ? 'Stock Actual' : 'Current Stock',
       render: (_, row) => {
-        const stock = getStockInfo(row.id);
-        const stockActual = stock?.stockActual || 0;
-        const stockMinimo = stock?.stockMinimo || 0;
+        const stockActual = row.stockActual || 0;
+        const stockMinimo = row.stockMinimo || 0;
 
         if (stockActual <= stockMinimo) {
           return <span className="text-red-500 font-bold">{stockActual}</span>;
@@ -290,17 +308,13 @@ export default function Stock({
     {
       key: 'stockMinimo',
       label: language === 'es' ? 'Stock Mínimo' : 'Min Stock',
-      render: (_, row) => {
-        const stock = getStockInfo(row.id);
-        return stock?.stockMinimo || 0;
-      }
+      render: (_, row) => row.stockMinimo || 0
     },
     {
       key: 'valorStock',
       label: language === 'es' ? 'Valor Stock' : 'Stock Value',
       render: (_, row) => {
-        const stock = getStockInfo(row.id);
-        const stockActual = stock?.stockActual || 0;
+        const stockActual = row.stockActual || 0;
         const costo = row.costo || 0;
         const valorTotal = stockActual * costo;
         return `$${formatCurrency(valorTotal)}`;
@@ -352,6 +366,15 @@ export default function Stock({
 
   return (
     <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-6 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
+      {/* Mostrar loading */}
+      {loading && (
+        <div className="flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#206DDA]"></div>
+        </div>
+      )}
+
+      {!loading && (
+        <>
       {/* Título */}
       <div className="mb-6 sm:mb-8">
         <h1 className="text-white light-mode:text-gray-900 font-black text-xl sm:text-2xl md:text-3xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-1 sm:mb-2">
@@ -611,6 +634,8 @@ export default function Stock({
         cancelText={language === 'es' ? 'Cancelar' : 'Cancel'}
         isDangerous={true}
       />
+        </>
+      )}
     </div>
   );
 }
@@ -673,6 +698,15 @@ function QuickAdjustModal({ isOpen, type, language, onConfirm, onCancel }) {
           </div>
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </>
   );
 }

@@ -4,47 +4,56 @@ import MetricCard from '../components/MetricCard';
 import TableContainer from '../components/TableContainer';
 import { t } from '../utils/translations';
 
-export default function Dashboard({ inventoryData, productsData = [], stockData = [], language = 'es' }) {
+export default function Dashboard({ inventoryData, productsData = [], stockData = [], language = 'es', isLoading = false }) {
   const [alertProducts, setAlertProducts] = useState([]);
 
   // Función para calcular productos en estado crítico
   const calculateAlerts = () => {
-    const critical = inventoryData
-      .filter(item => item.stockActual <= item.stockMinimo)
+    const data = inventoryData || productsData || [];
+    if (!Array.isArray(data) || data.length === 0) {
+      setAlertProducts([]);
+      return;
+    }
+
+    const critical = data
+      .filter(item => item && item.stockActual <= item.stockMinimo)
       .map(item => ({
-        nombre: item.nombre,
-        stockActual: item.stockActual,
-        stockMinimo: item.stockMinimo,
-        faltante: item.stockMinimo - item.stockActual,
+        nombre: item.nombre || 'Sin nombre',
+        stockActual: item.stockActual || 0,
+        stockMinimo: item.stockMinimo || 0,
+        faltante: (item.stockMinimo || 0) - (item.stockActual || 0),
       }))
       .sort((a, b) => b.faltante - a.faltante);
     
     setAlertProducts(critical);
   };
 
-  // Actualizar alertas cuando cambia inventoryData
+  // Actualizar alertas cuando cambia inventoryData o productsData
   useEffect(() => {
     calculateAlerts();
-  }, [inventoryData]);
+  }, [inventoryData, productsData]);
 
   // Calcular métricas mejoradas
-  const totalProducts = inventoryData.length;
-  const lowStock = inventoryData.filter(item => item.stockActual < item.stockMinimo).length;
+  const safeData = (inventoryData || productsData || []).filter(item => item);
+  const totalProducts = safeData.length;
+  const lowStock = safeData.filter(item => (item.stockActual || 0) < (item.stockMinimo || 0)).length;
   
   // Calcular valor total: Suma de (Costo Unitario * Stock Actual)
-  const totalValue = stockData.reduce((sum, stockItem) => {
-    const product = productsData.find(p => p.id === stockItem.productoId);
-    if (product) {
+  const safeStockData = (stockData || []).filter(item => item);
+  const safeProducstData = (productsData || []).filter(item => item);
+  const totalValue = safeStockData.reduce((sum, stockItem) => {
+    const product = safeProducstData.find(p => p.id === stockItem.productoId);
+    if (product && product.costo && stockItem.stockActual) {
       return sum + (product.costo * stockItem.stockActual);
     }
     return sum;
   }, 0);
   
   // Productos críticos: cantidad de productos por debajo del stock mínimo
-  const criticalProducts = stockData.filter(item => item.stockActual <= item.stockMinimo).length;
+  const criticalProducts = safeStockData.filter(item => (item.stockActual || 0) <= (item.stockMinimo || 0)).length;
   
   // Total referencias: cantidad total de productos distintos
-  const totalReferences = productsData.length;
+  const totalReferences = safeProducstData.length;
 
   const columns = [
     { key: 'nombre', label: t(language, 'nombre') },
@@ -52,6 +61,19 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
     { key: 'stockActual', label: t(language, 'stockActual') },
     { key: 'stockMinimo', label: t(language, 'stockMinimo') },
   ];
+
+  // Si está cargando, mostrar spinner
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-dark-bg light-mode:bg-gray-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#206DDA] mx-auto mb-4"></div>
+          <p className="text-white light-mode:text-gray-900 font-semibold">{language === 'es' ? 'Cargando dashboard...' : 'Loading dashboard...'}</p>
+          <p className="text-gray-400 light-mode:text-gray-600 text-sm mt-2">{language === 'es' ? 'Obteniendo datos de Firebase' : 'Fetching data from Firebase'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-dark-bg light-mode:bg-gray-50 p-4 sm:p-6 transition-colors duration-300">
@@ -139,11 +161,18 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
         {/* Tabla de Últimos Productos */}
         <div>
           <h2 className="text-xl sm:text-2xl font-bold mb-4 text-white light-mode:text-gray-900">{t(language, 'movimientosRecientes')}</h2>
-          <TableContainer
-            columns={columns}
-            data={inventoryData.slice(0, 5)}
-            onRowClick={(row) => console.log('Producto seleccionado:', row)}
-          />
+          {(inventoryData || []).length > 0 ? (
+            <TableContainer
+              columns={columns}
+              data={(inventoryData || []).slice(0, 5)}
+              onRowClick={(row) => console.log('Producto seleccionado:', row)}
+            />
+          ) : (
+            <div className="bg-gray-900/40 light-mode:bg-gray-100 border border-gray-700/40 light-mode:border-gray-300 rounded-lg p-6 text-center">
+              <Package className="w-12 h-12 text-gray-600 light-mode:text-gray-400 mx-auto mb-3 opacity-50" />
+              <p className="text-gray-400 light-mode:text-gray-600">{language === 'es' ? 'No hay productos para mostrar. Comienza agregando productos al inventario.' : 'No products to display. Start by adding products to inventory.'}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

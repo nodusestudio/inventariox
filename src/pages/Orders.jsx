@@ -1,40 +1,67 @@
 import { Search, Plus, X, Trash2, Check, AlertCircle, MessageCircle } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import Toast from '../components/Toast';
 import { useState, useEffect } from 'react';
+import {
+  getOrders,
+  addOrder,
+  updateOrder,
+  deleteOrder,
+  getProducts,
+  getProviders,
+  updateProduct
+} from '../services/firebaseService';
 
 export default function Orders({ 
   language = 'es', 
-  productsData = [], 
-  providers = [], 
-  stockData = [], 
-  companyData = {}, 
-  ordersData = [], 
-  setOrdersData,
-  setStockData 
+  user,
+  onShowToast = () => {}
 }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [orders, setOrders] = useState(() => {
-    if (ordersData && ordersData.length > 0) {
-      return ordersData;
-    }
-    const saved = localStorage.getItem('inventariox_orders');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [providers, setProviders] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmReceive, setConfirmReceive] = useState(null);
   const [isAddingPedido, setIsAddingPedido] = useState(false);
+  const [toast, setToast] = useState(null);
   const [formData, setFormData] = useState({
     proveedor: '',
     items: []
   });
 
-  // Guardar cambios en localStorage
+  // Mostrar notificación Toast
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    onShowToast?.(message, type);
+  };
+
+  // Cargar datos al montar el componente
   useEffect(() => {
-    localStorage.setItem('inventariox_orders', JSON.stringify(orders));
-    if (setOrdersData) {
-      setOrdersData(orders);
-    }
-  }, [orders, setOrdersData]);
+    if (!user) return;
+    
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [ordersData, productsData, providersData] = await Promise.all([
+          getOrders(user.uid),
+          getProducts(user.uid),
+          getProviders(user.uid)
+        ]);
+        setOrders(ordersData);
+        setProducts(productsData);
+        setProviders(providersData);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        showToast('❌ Error al cargar los datos', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user]);
 
   // Formatear moneda
   const formatCurrency = (value) => {
@@ -56,33 +83,39 @@ export default function Orders({
   };
 
   // Crear nuevo pedido
-  const handleCreateOrder = () => {
+  const handleCreateOrder = async () => {
     if (!formData.proveedor) {
-      alert('Selecciona un proveedor');
+      showToast('Selecciona un proveedor', 'error');
       return;
     }
     if (formData.items.length === 0) {
-      alert('Agrega al menos un producto');
+      showToast('Agrega al menos un producto', 'error');
       return;
     }
 
     const newOrder = {
-      id: `PED-${Date.now()}`,
       proveedor: formData.proveedor,
       fecha: new Date().toISOString().split('T')[0],
       items: formData.items,
-      total: formData.items.reduce((sum, item) => sum + ((item.precioUnitario || 0) * item.cantidadPedir), 0),
+      total: formData.items.reduce((sum, item) => sum + ((item.costo || 0) * item.cantidadPedir), 0),
       estado: 'Pendiente'
     };
 
-    setOrders([...orders, newOrder]);
-    setIsAddingPedido(false);
-    setFormData({ proveedor: '', items: [] });
+    try {
+      const orderId = await addOrder(user.uid, newOrder);
+      setOrders([...orders, { id: orderId, ...newOrder }]);
+      setIsAddingPedido(false);
+      setFormData({ proveedor: '', items: [] });
+      showToast('✓ Pedido creado exitosamente', 'success');
+    } catch (error) {
+      console.error('Error creating order:', error);
+      showToast('❌ Error al crear el pedido', 'error');
+    }
   };
 
   // Agregar producto al formulario
   const handleAddItem = (productId) => {
-    const product = productsData.find(p => p.id === productId);
+    const product = products.find(p => p.id === productId);
     if (!product) return;
 
     const exists = formData.items.find(i => i.id === productId);
@@ -101,7 +134,7 @@ export default function Orders({
         items: [...formData.items, { 
           id: productId,
           nombre: product.nombre,
-          precioUnitario: product.precioUnitario || 0,
+          costo: product.costo || 0,
           cantidadPedir: 1
         }]
       });
@@ -131,44 +164,43 @@ export default function Orders({
   };
 
   // Eliminar pedido
-  const handleDeleteOrder = (orderId) => {
-    const updatedOrders = orders.filter(o => o.id !== orderId);
-    setOrders(updatedOrders);
-    localStorage.setItem('inventariox_orders', JSON.stringify(updatedOrders));
-    setConfirmDelete(null);
+  const handleDeleteOrder = async (orderId) => {
+    try {
+      await deleteOrder(user.uid, orderId);
+      setOrders(orders.filter(o => o.id !== orderId));
+      setConfirmDelete(null);
+      showToast('✓ Pedido eliminado', 'success');
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      showToast('❌ Error al eliminar el pedido', 'error');
+    }
   };
 
   // Recibir mercancía - actualizar inventario
-  const handleReceiveOrder = (orderId) => {
+  const handleReceiveOrder = async (orderId) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
-    // Actualizar stock con los items del pedido
-    const updatedStock = stockData.map(stock => {
-      const orderItem = order.items?.find(item => item.id === stock.productoId);
-      if (orderItem) {
-        const newQty = (parseInt(stock.stockActual) || 0) + (orderItem.cantidadPedir || 0);
-        return {
-          ...stock,
-          stockActual: newQty.toString()
-        };
+    try {
+      // Actualizar stock para cada producto en el pedido
+      for (const item of order.items) {
+        const product = products.find(p => p.id === item.id);
+        if (product) {
+          const newStock = (product.stockActual || 0) + (item.cantidadPedir || 0);
+          await updateProduct(user.uid, item.id, { stockActual: newStock });
+        }
       }
-      return stock;
-    });
 
-    // Actualizar localStorage de stock
-    localStorage.setItem('inventariox_stock', JSON.stringify(updatedStock));
-    if (setStockData) {
-      setStockData(updatedStock);
+      // Actualizar estado del pedido a "Recibido"
+      const updatedOrder = { ...order, estado: 'Recibido' };
+      await updateOrder(user.uid, orderId, { estado: 'Recibido' });
+      setOrders(orders.map(o => o.id === orderId ? updatedOrder : o));
+      setConfirmReceive(null);
+      showToast('✓ Mercancía recibida y stock actualizado', 'success');
+    } catch (error) {
+      console.error('Error receiving order:', error);
+      showToast('❌ Error al recibir la mercancía', 'error');
     }
-
-    // Cambiar estado del pedido a "Recibido"
-    const updatedOrders = orders.map(o => 
-      o.id === orderId ? { ...o, estado: 'Recibido' } : o
-    );
-    setOrders(updatedOrders);
-    localStorage.setItem('inventariox_orders', JSON.stringify(updatedOrders));
-    setConfirmReceive(null);
   };
 
   // Filtrar pedidos por búsqueda
@@ -215,8 +247,16 @@ export default function Orders({
   // Obtener número del proveedor
   const getProviderPhone = (providerName) => {
     const provider = providers.find(p => p.nombre === providerName);
-    return provider?.whatsapp || null;
+    return provider?.telefono || provider?.whatsapp || null;
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#206DDA]"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#111827] light-mode:bg-gray-50 p-4 sm:p-6 lg:p-8 transition-colors duration-300">
@@ -297,7 +337,7 @@ export default function Orders({
                     Agregar Productos
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg border-2 border-gray-600 light-mode:border-gray-300">
-                    {productsData.map(product => {
+                    {products.map(product => {
                       const isSelected = formData.items.some(i => i.id === product.id);
                       return (
                         <button
@@ -329,7 +369,7 @@ export default function Orders({
                         <div className="flex-1">
                           <p className="font-bold text-white light-mode:text-gray-900">{item.nombre}</p>
                           <p className="text-xs text-gray-400 light-mode:text-gray-600">
-                            ${formatCurrency(item.precioUnitario)} c/u
+                            ${formatCurrency(item.costo)} c/u
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
@@ -341,7 +381,7 @@ export default function Orders({
                             className="w-16 px-2 py-2 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center focus:outline-none focus:border-[#206DDA]"
                           />
                           <p className="text-yellow-400 font-bold w-24 text-right">
-                            ${formatCurrency(item.precioUnitario * item.cantidadPedir)}
+                            ${formatCurrency(item.costo * item.cantidadPedir)}
                           </p>
                           <button
                             onClick={() => handleRemoveItem(item.id)}
@@ -362,7 +402,7 @@ export default function Orders({
                   <div className="flex justify-between items-center">
                     <p className="text-sm font-bold text-gray-400 light-mode:text-gray-600 uppercase">Total del Pedido</p>
                     <p className="text-2xl font-black text-yellow-400">
-                      ${formatCurrency(formData.items.reduce((sum, i) => sum + (i.precioUnitario * i.cantidadPedir), 0))}
+                      ${formatCurrency(formData.items.reduce((sum, i) => sum + (i.costo * i.cantidadPedir), 0))}
                     </p>
                   </div>
                 </div>
@@ -415,10 +455,10 @@ export default function Orders({
                       </div>
                       <button
                         onClick={() => setConfirmDelete(order.id)}
-                        className="p-2 hover:bg-red-500/20 light-mode:hover:bg-red-100 rounded-lg transition-colors flex-shrink-0"
+                        className="p-1.5 hover:bg-red-500/20 light-mode:hover:bg-red-100 rounded-lg transition-colors flex-shrink-0 relative z-10"
                         title="Eliminar pedido"
                       >
-                        <Trash2 className="w-5 h-5 text-red-400 light-mode:text-red-600" />
+                        <Trash2 className="w-4 h-4 text-red-400 light-mode:text-red-600" />
                       </button>
                     </div>
                     <div className="flex flex-col gap-1">
@@ -433,43 +473,43 @@ export default function Orders({
 
                   {/* Contenido de tarjeta */}
                   <div className="space-y-3 mb-6 flex-1">
-                  {/* Estado - Solo un badge */}
-                  <div className="p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase mb-2">
-                      Estado
-                    </p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${getEstadoColor(order.estado)}`}>
-                      {getEstadoLabel(order.estado)}
-                    </span>
-                  </div>
-
-                  {/* Total */}
-                  {order.total && (
+                    {/* Estado - Solo un badge */}
                     <div className="p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg">
-                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-1 uppercase">
-                        Monto
+                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold uppercase mb-2">
+                        Estado
                       </p>
-                      <p className="text-yellow-400 font-bold text-lg">
-                        ${formatCurrency(order.total)}
-                      </p>
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${getEstadoColor(order.estado)}`}>
+                        {getEstadoLabel(order.estado)}
+                      </span>
                     </div>
-                  )}
 
-                  {/* Items resumen */}
-                  {order.items && order.items.length > 0 && (
-                    <div className="p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg">
-                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase">
-                        Items ({order.items.length})
-                      </p>
-                      <ul className="text-sm text-gray-300 light-mode:text-gray-700 space-y-1">
-                        {order.items.map((item, idx) => (
-                          <li key={idx} className="truncate">
-                            • {item.nombre} ×{item.cantidadPedir}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                    {/* Total */}
+                    {order.total && (
+                      <div className="p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-1 uppercase">
+                          Monto
+                        </p>
+                        <p className="text-yellow-400 font-bold text-lg">
+                          ${formatCurrency(order.total)}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Items resumen */}
+                    {order.items && order.items.length > 0 && (
+                      <div className="p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase">
+                          Items ({order.items.length})
+                        </p>
+                        <ul className="text-sm text-gray-300 light-mode:text-gray-700 space-y-1">
+                          {order.items.map((item, idx) => (
+                            <li key={idx} className="truncate">
+                              • {item.nombre} ×{item.cantidadPedir}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
 
                   {/* Botones de acción - Fila dedicada */}
@@ -537,6 +577,15 @@ export default function Orders({
           cancelText="Cancelar"
           isDangerous={false}
         />
+
+        {/* Toast Notification */}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </div>
     </div>
   );

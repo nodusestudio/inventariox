@@ -11,12 +11,13 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  TrendingUp
+  TrendingUp,
+  LogOut
 } from 'lucide-react';
 import Logo from './Logo';
 import { t } from '../utils/translations';
 
-export default function Sidebar({ activeTab, onTabChange, language = 'es' }) {
+export default function Sidebar({ currentPage, setCurrentPage, user, onLogout, language = 'es' }) {
   const [sidebarOpen, setSidebarOpen] = useState(true); // Abierto por defecto en desktop
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
@@ -35,17 +36,17 @@ export default function Sidebar({ activeTab, onTabChange, language = 'es' }) {
 
   // Configuración de pestañas con iconos
   const tabs = [
-    { name: 'Panel', icon: LayoutDashboard, label: t(language, 'panel') },
-    { name: 'Proveedores', icon: Users, label: t(language, 'proveedores') },
-    { name: 'Inventario', icon: Boxes, label: language === 'es' ? 'Inventario' : 'Inventory' },
-    { name: 'Movimientos', icon: TrendingUp, label: language === 'es' ? 'Movimientos' : 'Movements' },
-    { name: 'Pedidos', icon: ShoppingCart, label: t(language, 'pedidos') },
-    { name: 'Base de Datos', icon: Database, label: language === 'es' ? 'Base de Datos' : 'Database' },
-    { name: 'Configuración', icon: SettingsIcon, label: t(language, 'configuracion') },
+    { name: 'dashboard', icon: LayoutDashboard, label: 'Panel' },
+    { name: 'providers', icon: Users, label: 'Proveedores' },
+    { name: 'stock', icon: Boxes, label: 'Inventario' },
+    { name: 'movements', icon: TrendingUp, label: 'Movimientos' },
+    { name: 'orders', icon: ShoppingCart, label: 'Pedidos' },
+    { name: 'database', icon: Database, label: 'Base de Datos' },
+    { name: 'settings', icon: SettingsIcon, label: 'Configuración' },
   ];
 
-  const handleTabChange = (tab) => {
-    onTabChange(tab);
+  const handleTabChange = (tabName) => {
+    setCurrentPage(tabName);
     if (isMobile) {
       setSidebarOpen(false); // Cerrar en mobile después de seleccionar
     }
@@ -107,7 +108,7 @@ export default function Sidebar({ activeTab, onTabChange, language = 'es' }) {
         <nav className="flex-1 p-3 md:p-4 space-y-2">
           {tabs.map((tab) => {
             const Icon = tab.icon;
-            const isActive = activeTab === tab.name;
+            const isActive = currentPage === tab.name;
 
             return (
               <button
@@ -129,21 +130,34 @@ export default function Sidebar({ activeTab, onTabChange, language = 'es' }) {
           })}
         </nav>
 
-        {/* Footer del Sidebar */}
-        <div className="p-3 md:p-4 border-t border-[#374151]">
+        {/* Footer del Sidebar con usuario y logout */}
+        <div className="p-3 md:p-4 border-t border-[#374151] space-y-3">
+          {/* Info del usuario */}
           <div className={`flex items-center gap-3 px-3 md:px-4 py-3 rounded-lg bg-gray-700 bg-opacity-50 ${
             !sidebarOpen ? 'justify-center' : ''
           }`}>
             <div className="w-8 md:w-10 h-8 md:h-10 rounded-full bg-gradient-to-r from-[#206DDA] to-blue-500 flex items-center justify-center font-bold text-white text-sm md:text-base flex-shrink-0">
-              U
+              {user?.email?.charAt(0).toUpperCase() || 'U'}
             </div>
             {sidebarOpen && (
-              <div className="text-left hidden sm:block">
-                <p className="text-xs md:text-sm font-medium text-white">Usuario</p>
-                <p className="text-xs text-gray-400">Admin</p>
+              <div className="text-left hidden sm:block truncate">
+                <p className="text-xs md:text-sm font-medium text-white truncate">{user?.displayName || 'Usuario'}</p>
+                <p className="text-xs text-gray-400 truncate">{user?.email}</p>
               </div>
             )}
           </div>
+
+          {/* Botón de Logout */}
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-3 md:px-4 py-3 rounded-lg font-medium transition-all duration-200 text-red-400 hover:bg-red-900/30 hover:text-red-300"
+            title={!sidebarOpen ? 'Cerrar sesión' : ''}
+          >
+            <LogOut className="w-5 h-5 flex-shrink-0" />
+            {sidebarOpen && (
+              <span className="truncate text-sm md:text-base">Cerrar Sesión</span>
+            )}
+          </button>
         </div>
       </aside>
     </>

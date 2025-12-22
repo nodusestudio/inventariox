@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle, Cloud, Clock, Package, Users, FileJson, ChevronDown } from 'lucide-react';
+import Toast from '../components/Toast';
 import { t } from '../utils/translations';
 
 // ============================================================================
@@ -225,6 +226,12 @@ export default function DatabasePage({
   const [resetConfirm, setResetConfirm] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
   const [downloadOption, setDownloadOption] = useState('completo');
+  const [toast, setToast] = useState(null);
+
+  // Mostrar notificación Toast
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+  };
 
   // Handlers de Exportación
   const handleExportProviders = () => {
@@ -285,6 +292,7 @@ export default function DatabasePage({
         stock: stockData,
         orders: ordersData,
       });
+      showToast('✓ Backup completo descargado exitosamente', 'success');
     } else if (downloadOption === 'inventario') {
       // Solo Inventario
       exportToJSON({
@@ -294,6 +302,7 @@ export default function DatabasePage({
         stock: stockData || [],
         orders: [],
       });
+      showToast('✓ Inventario descargado exitosamente', 'success');
     } else if (downloadOption === 'proveedores') {
       // Solo Proveedores
       exportToJSON({
@@ -303,6 +312,7 @@ export default function DatabasePage({
         stock: [],
         orders: [],
       });
+      showToast('✓ Proveedores descargados exitosamente', 'success');
     }
   };
 
@@ -340,6 +350,7 @@ export default function DatabasePage({
           }
 
           alert('✅ Datos importados correctamente. Recargando página...');
+          showToast('✓ Respaldo restaurado exitosamente', 'success');
           setTimeout(() => window.location.reload(), 1500);
         } else {
           throw new Error('Formato de archivo inválido');
@@ -509,7 +520,7 @@ export default function DatabasePage({
       </div>
 
       {/* Salud del Sistema - Minimalista */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <div className="bg-[#1f2937]/50 light-mode:bg-blue-50 border border-gray-700/50 light-mode:border-blue-200 rounded-lg p-5">
           <p className="text-xs text-gray-400 light-mode:text-blue-600 font-semibold uppercase tracking-wider mb-1">
             Registros Totales
@@ -537,6 +548,19 @@ export default function DatabasePage({
             <Clock className="w-5 h-5 text-purple-500" />
           </div>
         </div>
+        <div className="bg-[#1f2937]/50 light-mode:bg-green-50 border border-gray-700/50 light-mode:border-green-200 rounded-lg p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-gray-400 light-mode:text-green-600 font-semibold uppercase tracking-wider mb-1">
+                Sistema Local
+              </p>
+              <p className="text-sm text-green-400 light-mode:text-green-700 font-bold">
+                ● Activo
+              </p>
+            </div>
+            <div className="w-3 h-3 rounded-full bg-green-500 light-mode:bg-green-600 animate-pulse" />
+          </div>
+        </div>
       </div>
 
       {/* Dos Grandes Acciones */}
@@ -553,45 +577,24 @@ export default function DatabasePage({
             <Cloud className="w-12 h-12 text-blue-400 opacity-20" />
           </div>
           
-          {/* Selector de opciones de descarga */}
-          <div className="mb-6 space-y-3">
+          {/* Selector de descarga elegante */}
+          <div className="mb-6">
             <label className="block text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wide mb-3">
-              Selecciona qué descargar
+              ¿Qué descargar?
             </label>
             
-            {[
-              { value: 'inventario', label: '📦 Solo Inventario', icon: Package, desc: 'Productos y stock' },
-              { value: 'proveedores', label: '👥 Solo Proveedores', icon: Users, desc: 'Lista de proveedores' },
-              { value: 'completo', label: '💾 Backup Completo', icon: HardDrive, desc: 'Todo tu sistema' }
-            ].map(option => (
-              <button
-                key={option.value}
-                onClick={() => setDownloadOption(option.value)}
-                className={`w-full text-left p-4 rounded-lg border-2 transition-all flex items-center justify-between ${
-                  downloadOption === option.value
-                    ? 'border-[#206DDA] bg-[#206DDA]/10'
-                    : 'border-gray-600 light-mode:border-gray-300 hover:border-[#206DDA]/50'
-                }`}
+            <div className="relative">
+              <select
+                value={downloadOption}
+                onChange={(e) => setDownloadOption(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border-2 border-gray-600 light-mode:border-gray-300 bg-[#111827] light-mode:bg-white text-white light-mode:text-gray-900 font-semibold appearance-none cursor-pointer transition-all hover:border-[#206DDA]/50 focus:outline-none focus:border-[#206DDA]"
               >
-                <div className="flex-1">
-                  <p className="font-semibold text-white light-mode:text-gray-900">
-                    {option.label}
-                  </p>
-                  <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-1">
-                    {option.desc}
-                  </p>
-                </div>
-                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                  downloadOption === option.value
-                    ? 'border-[#206DDA] bg-[#206DDA]'
-                    : 'border-gray-500'
-                }`}>
-                  {downloadOption === option.value && (
-                    <div className="w-2 h-2 bg-white rounded-full" />
-                  )}
-                </div>
-              </button>
-            ))}
+                <option value="inventario">📦 Descargar Inventario (.json)</option>
+                <option value="proveedores">👥 Descargar Proveedores (.json)</option>
+                <option value="completo">💾 Backup Completo</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
           </div>
           
           <button
@@ -926,6 +929,15 @@ export default function DatabasePage({
           )}
         </div>
       </div>
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
