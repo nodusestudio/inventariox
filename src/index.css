@@ -247,3 +247,70 @@ select:disabled,
 textarea:disabled {
   @apply opacity-50 cursor-not-allowed;
 }
+/* ============================================================================
+   ESTILOS PARA SWEETALERT2
+   ============================================================================ */
+
+.swal-dark-popup {
+  background-color: #1f2937 !important;
+  color: #ffffff !important;
+  border: 1px solid #374151 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5) !important;
+}
+
+.swal-dark-popup .swal2-title {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 24px !important;
+}
+
+.swal-dark-popup .swal2-html-container {
+  color: #d1d5db !important;
+}
+
+.swal-dark-popup .swal2-confirm {
+  background-color: #206DDA !important;
+  border-color: #206DDA !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+  transition: all 0.2s ease !important;
+}
+
+.swal-dark-popup .swal2-confirm:hover {
+  background-color: #1a52b0 !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(32, 109, 218, 0.4) !important;
+}
+
+.swal-dark-popup .swal2-deny,
+.swal-dark-popup .swal2-cancel {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  border-radius: 8px !important;
+}
+
+.swal-dark-popup .swal2-icon {
+  border-color: transparent !important;
+}
+
+.swal-dark-popup .swal2-icon.swal2-warning {
+  color: #f59e0b !important;
+}
+
+.swal-dark-popup .swal2-icon.swal2-error {
+  color: #ef4444 !important;
+}
+
+.swal-dark-popup .swal2-icon.swal2-success {
+  color: #10b981 !important;
+}
+
+.swal-dark-popup .swal2-icon.swal2-info {
+  color: #206DDA !important;
+}
