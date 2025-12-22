@@ -22,6 +22,11 @@ export default function Orders({
   });
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmReceive, setConfirmReceive] = useState(null);
+  const [isAddingPedido, setIsAddingPedido] = useState(false);
+  const [formData, setFormData] = useState({
+    proveedor: '',
+    items: []
+  });
 
   // Guardar cambios en localStorage
   useEffect(() => {
@@ -50,10 +55,79 @@ export default function Orders({
     });
   };
 
-  // Eliminar pedido
-  const handleDeleteOrder = (orderId) => {
-    setOrders(orders.filter(o => o.id !== orderId));
-    setConfirmDelete(null);
+  // Crear nuevo pedido
+  const handleCreateOrder = () => {
+    if (!formData.proveedor) {
+      alert('Selecciona un proveedor');
+      return;
+    }
+    if (formData.items.length === 0) {
+      alert('Agrega al menos un producto');
+      return;
+    }
+
+    const newOrder = {
+      id: `PED-${Date.now()}`,
+      proveedor: formData.proveedor,
+      fecha: new Date().toISOString().split('T')[0],
+      items: formData.items,
+      total: formData.items.reduce((sum, item) => sum + ((item.precioUnitario || 0) * item.cantidadPedir), 0),
+      estado: 'Pendiente'
+    };
+
+    setOrders([...orders, newOrder]);
+    setIsAddingPedido(false);
+    setFormData({ proveedor: '', items: [] });
+  };
+
+  // Agregar producto al formulario
+  const handleAddItem = (productId) => {
+    const product = productsData.find(p => p.id === productId);
+    if (!product) return;
+
+    const exists = formData.items.find(i => i.id === productId);
+    if (exists) {
+      setFormData({
+        ...formData,
+        items: formData.items.map(i => 
+          i.id === productId 
+            ? { ...i, cantidadPedir: Math.min((i.cantidadPedir || 1) + 1, 999) }
+            : i
+        )
+      });
+    } else {
+      setFormData({
+        ...formData,
+        items: [...formData.items, { 
+          id: productId,
+          nombre: product.nombre,
+          precioUnitario: product.precioUnitario || 0,
+          cantidadPedir: 1
+        }]
+      });
+    }
+  };
+
+  // Eliminar producto del formulario
+  const handleRemoveItem = (productId) => {
+    setFormData({
+      ...formData,
+      items: formData.items.filter(i => i.id !== productId)
+    });
+  };
+
+  // Actualizar cantidad
+  const handleUpdateQty = (productId, qty) => {
+    if (qty <= 0) {
+      handleRemoveItem(productId);
+    } else {
+      setFormData({
+        ...formData,
+        items: formData.items.map(i =>
+          i.id === productId ? { ...i, cantidadPedir: qty } : i
+        )
+      });
+    }
   };
 
   // Recibir mercancía - actualizar inventario
@@ -132,6 +206,7 @@ export default function Orders({
             />
           </div>
           <button 
+            onClick={() => setIsAddingPedido(true)}
             className="flex items-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-all"
           >
             <Plus className="w-5 h-5" />
@@ -139,7 +214,146 @@ export default function Orders({
           </button>
         </div>
 
-        {/* Lista de tarjetas de pedidos */}
+        {/* FORMULARIO NUEVO PEDIDO */}
+        {isAddingPedido && (
+          <div className="mb-8 bg-[#1f2937] light-mode:bg-white rounded-lg border border-gray-700 light-mode:border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white light-mode:text-gray-900">
+                Crear Nuevo Pedido
+              </h2>
+              <button
+                onClick={() => {
+                  setIsAddingPedido(false);
+                  setFormData({ proveedor: '', items: [] });
+                }}
+                className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-400 light-mode:text-gray-600" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Selector de Proveedor */}
+              <div>
+                <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                  Seleccionar Proveedor
+                </label>
+                <select
+                  value={formData.proveedor}
+                  onChange={(e) => setFormData({ ...formData, proveedor: e.target.value })}
+                  className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none"
+                >
+                  <option value="">-- Elige un proveedor --</option>
+                  {providers.map(p => (
+                    <option key={p.id} value={p.nombre}>
+                      {p.nombre} {p.contacto ? `(${p.contacto})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selector de Productos */}
+              {formData.proveedor && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                    Agregar Productos
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg border-2 border-gray-600 light-mode:border-gray-300">
+                    {productsData.map(product => {
+                      const isSelected = formData.items.some(i => i.id === product.id);
+                      return (
+                        <button
+                          key={product.id}
+                          onClick={() => handleAddItem(product.id)}
+                          className={`text-left p-3 rounded-lg border-2 transition-all font-semibold text-sm ${
+                            isSelected
+                              ? 'bg-[#206DDA] border-blue-400 text-white'
+                              : 'bg-gray-700 light-mode:bg-white border-gray-500 light-mode:border-gray-300 text-gray-300 light-mode:text-gray-900 hover:border-[#206DDA]'
+                          }`}
+                        >
+                          {product.nombre}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Items agregados */}
+              {formData.items.length > 0 && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                    Productos a Pedir ({formData.items.length})
+                  </label>
+                  <div className="space-y-3">
+                    {formData.items.map(item => (
+                      <div key={item.id} className="flex items-center gap-3 p-4 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                        <div className="flex-1">
+                          <p className="font-bold text-white light-mode:text-gray-900">{item.nombre}</p>
+                          <p className="text-xs text-gray-400 light-mode:text-gray-600">
+                            ${formatCurrency(item.precioUnitario)} c/u
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={item.cantidadPedir}
+                            onChange={(e) => handleUpdateQty(item.id, parseInt(e.target.value) || 1)}
+                            className="w-16 px-2 py-2 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center focus:outline-none focus:border-[#206DDA]"
+                          />
+                          <p className="text-yellow-400 font-bold w-24 text-right">
+                            ${formatCurrency(item.precioUnitario * item.cantidadPedir)}
+                          </p>
+                          <button
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors"
+                          >
+                            <X className="w-4 h-4 text-red-400 light-mode:text-red-600" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Total */}
+              {formData.items.length > 0 && (
+                <div className="p-4 bg-[#111827] light-mode:bg-gray-50 rounded-lg border-2 border-[#206DDA]">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-bold text-gray-400 light-mode:text-gray-600 uppercase">Total del Pedido</p>
+                    <p className="text-2xl font-black text-yellow-400">
+                      ${formatCurrency(formData.items.reduce((sum, i) => sum + (i.precioUnitario * i.cantidadPedir), 0))}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Botones de acción */}
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={handleCreateOrder}
+                  disabled={!formData.proveedor || formData.items.length === 0}
+                  className="flex-1 px-6 py-3 bg-[#206DDA] hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all shadow-lg hover:shadow-xl"
+                >
+                  ✓ Crear Pedido
+                </button>
+                <button
+                  onClick={() => {
+                    setIsAddingPedido(false);
+                    setFormData({ proveedor: '', items: [] });
+                  }}
+                  className="flex-1 px-6 py-3 bg-gray-700 light-mode:bg-gray-300 hover:bg-gray-600 light-mode:hover:bg-gray-400 text-white light-mode:text-gray-900 font-bold rounded-lg transition-all"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* LISTADO DE PEDIDOS */}
         {filteredOrders.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredOrders.map(order => (
