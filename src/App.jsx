@@ -140,6 +140,7 @@ export default function App() {
         user={user}
         language={language}
         onShowToast={showToast}
+        onGoToCreateProviders={() => setCurrentPage('providers')}
       />
     ),
     movements: (

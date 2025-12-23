@@ -26,12 +26,13 @@ const formatCurrency = (value) => {
 export default function Stock({ 
   user,
   language = 'es', 
-  onShowToast = () => {}
+  onShowToast = () => {},
+  onGoToCreateProviders = () => {}
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProviderFilter, setSelectedProviderFilter] = useState('');
   const [products, setProducts] = useState([]);
-  const [providers, setProviders] = useState([]);
+  const [listaProveedores, setListaProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -61,7 +62,7 @@ export default function Stock({
           getProviders(user.uid)
         ]);
         setProducts(productsData);
-        setProviders(providersData);
+        setListaProveedores(providersData);
       } catch (error) {
         console.error('Error loading data:', error);
         showToast('❌ Error al cargar los datos', 'error');
@@ -414,7 +415,7 @@ export default function Stock({
             className="w-full px-4 py-3 md:py-2.5 bg-gray-700 light-mode:bg-white border-2 border-gray-600 light-mode:border-gray-200 rounded-lg text-base md:text-sm text-white light-mode:text-gray-900 placeholder-gray-400 focus:border-[#206DDA] focus:outline-none transition-all appearance-none cursor-pointer shadow-sm hover:shadow-md font-medium"
           >
             <option value="">{language === 'es' ? 'Todos los proveedores' : 'All providers'}</option>
-            {providers.map(provider => (
+            {listaProveedores.map(provider => (
               <option key={provider.id} value={provider.nombre}>
                 {provider.nombre}
               </option>
@@ -504,12 +505,27 @@ export default function Stock({
                     className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
                   >
                     <option value="">{language === 'es' ? 'Seleccionar proveedor' : 'Select provider'}</option>
-                    {providers.map(provider => (
-                      <option key={provider.id} value={provider.nombre}>
-                        {provider.nombre}
-                      </option>
-                    ))}
+                    {listaProveedores.length > 0 ? (
+                      listaProveedores.map(provider => (
+                        <option key={provider.id} value={provider.nombre}>
+                          {provider.nombre}
+                        </option>
+                      ))
+                    ) : (
+                      <option value="" disabled>{language === 'es' ? 'No hay proveedores registrados' : 'No providers registered'}</option>
+                    )}
                   </select>
+                  {listaProveedores.length === 0 && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => onGoToCreateProviders()}
+                        className="px-3 py-2 text-xs bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg"
+                      >
+                        {language === 'es' ? 'Crear proveedor' : 'Create provider'}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
