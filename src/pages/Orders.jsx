@@ -20,7 +20,7 @@ export default function Orders({
   const [searchTerm, setSearchTerm] = useState('');
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
-  const [providers, setProviders] = useState([]);
+  const [listaProveedores, setListaProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmReceive, setConfirmReceive] = useState(null);
@@ -51,7 +51,7 @@ export default function Orders({
         ]);
         setOrders(ordersData);
         setProducts(productsData);
-        setProviders(providersData);
+        setListaProveedores(providersData);
       } catch (error) {
         console.error('Error loading data:', error);
         showToast('❌ Error al cargar los datos', 'error');
@@ -322,7 +322,7 @@ export default function Orders({
                   className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none"
                 >
                   <option value="">-- Elige un proveedor --</option>
-                  {providers.map(p => (
+                  {listaProveedores.map(p => (
                     <option key={p.id} value={p.nombre}>
                       {p.nombre} {p.contacto ? `(${p.contacto})` : ''}
                     </option>
