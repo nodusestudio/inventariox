@@ -170,6 +170,7 @@ export default function App() {
         language={language}
         setLanguage={setLanguage}
         user={user}
+        onLogout={handleLogout}
       />
     ),
     database: (
