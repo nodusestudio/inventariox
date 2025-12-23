@@ -184,7 +184,8 @@ export default function Orders({
         if (i.id === productId) {
           const nuevoStockEnMano = parseInt(stockEnMano) || 0;
           const stockObjetivo = i.stockObjetivo || 10;
-          const nuevaCantidadSugerida = Math.max(0, stockObjetivo - nuevoStockEnMano);
+          // LÓGICA CORRECTA: Si Stock en Mano >= Stock Objetivo, Sugerido = 0
+          const nuevaCantidadSugerida = nuevoStockEnMano >= stockObjetivo ? 0 : (stockObjetivo - nuevoStockEnMano);
           
           return {
             ...i,
@@ -200,17 +201,19 @@ export default function Orders({
   };
 
   // Eliminar pedido
-  const handleDeleteOrder = async (orderId) => {
-    try {
-      await deleteOrder(user.uid, orderId);
-      setOrders(orders.filter(o => o.id !== orderId));
-      setConfirmDelete(null);
-      showToast('✓ Pedido eliminado', 'success');
-    } catch (error) {
-      console.error('Error deleting order:', error);
-      showToast('❌ Error al eliminar el pedido', 'error');
-    }
-  };
+    const handleDeleteOrder = async (orderId) => {
+      try {
+        console.log('🗑️ Eliminando pedido:', orderId);
+        await deleteOrder(orderId);
+        setOrders(orders.filter(o => o.id !== orderId));
+        console.log('✅ Pedido eliminado exitosamente de Firestore y estado local');
+        showToast('Pedido eliminado exitosamente', 'success');
+      } catch (error) {
+        console.error('❌ Error al eliminar pedido:', error);
+        showToast('Error al eliminar el pedido', 'error');
+        setOrders(orders);
+      }
+    };
 
   // Recibir mercancía - actualizar inventario
   const handleReceiveOrder = async (orderId) => {
@@ -534,67 +537,73 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
               {/* Items agregados */}
               {formData.items.length > 0 && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-2 uppercase tracking-wide">
                     Productos a Pedir ({formData.items.length})
                   </label>
-                  <div className="space-y-4">
+                  <div className="space-y-1 overflow-x-auto">
                     {formData.items.map(item => (
-                      <div key={item.id} className="p-4 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex-1">
-                            <p className="font-bold text-white light-mode:text-gray-900">{item.nombre}</p>
-                            <p className="text-xs text-gray-400 light-mode:text-gray-600">
-                              ${formatCurrency(item.costo)} c/u
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4 text-red-400 light-mode:text-red-600" />
-                          </button>
+                      <div key={item.id} className="flex items-center gap-2 p-2 bg-[#111827] light-mode:bg-gray-50 rounded border border-gray-600 light-mode:border-gray-300 text-xs whitespace-nowrap">
+                        {/* Nombre y Costo */}
+                        <div className="flex-1 min-w-fit">
+                          <p className="font-bold text-white light-mode:text-gray-900 truncate">{item.nombre}</p>
+                          <p className="text-xs text-gray-400 light-mode:text-gray-600">${formatCurrency(item.costo)}/u</p>
                         </div>
 
-                        {/* Fila: Stock en Mano, Stock Objetivo, Cantidad Sugerida */}
-                        <div className="grid grid-cols-3 gap-3 mb-3 pb-3 border-b border-gray-700 light-mode:border-gray-300">
-                          <div>
-                            <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-1 font-semibold">Stock en Mano</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={item.stockEnMano || 0}
-                              onChange={(e) => handleUpdateStockEnMano(item.id, e.target.value)}
-                              className="w-full px-2 py-2 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-sm focus:outline-none focus:border-[#206DDA]"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-1 font-semibold">Stock Objetivo</label>
-                            <p className="w-full px-2 py-2 bg-[#1f2937] light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-sm font-bold">
-                              {item.stockObjetivo || 10}
-                            </p>
-                          </div>
-                          <div>
-                            <label className="text-xs text-yellow-400 light-mode:text-yellow-600 block mb-1 font-bold">💡 Sugerida</label>
-                            <p className="w-full px-2 py-2 bg-yellow-900/30 light-mode:bg-yellow-100 border border-yellow-600 light-mode:border-yellow-400 rounded text-yellow-300 light-mode:text-yellow-700 text-center text-sm font-bold">
-                              {item.cantidadSugerida || 0}
-                            </p>
-                          </div>
+                        {/* Stock en Mano */}
+                        <div className="w-20">
+                          <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Mano:</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={item.stockEnMano || 0}
+                            onChange={(e) => handleUpdateStockEnMano(item.id, e.target.value)}
+                            className="w-full px-1.5 py-1 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs focus:outline-none focus:border-[#206DDA]"
+                          />
                         </div>
 
-                        {/* Fila: Cantidad a Pedir */}
-                        <div className="flex items-center gap-3">
-                          <label className="text-sm font-bold text-gray-400 light-mode:text-gray-600 uppercase">Cantidad a Pedir</label>
+                        {/* Stock Objetivo */}
+                        <div className="w-16">
+                          <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Obj:</label>
+                          <p className="w-full px-1.5 py-1 bg-[#1f2937] light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs font-bold">
+                            {item.stockObjetivo || 10}
+                          </p>
+                        </div>
+
+                        {/* Cantidad Sugerida */}
+                        <div className="w-16">
+                          <label className="text-xs text-yellow-400 light-mode:text-yellow-600 block mb-0.5 font-bold">Sug:</label>
+                          <p className="w-full px-1.5 py-1 bg-yellow-900/30 light-mode:bg-yellow-100 border border-yellow-600 light-mode:border-yellow-400 rounded text-yellow-300 light-mode:text-yellow-700 text-center text-xs font-bold">
+                            {item.cantidadSugerida || 0}
+                          </p>
+                        </div>
+
+                        {/* Cantidad a Pedir */}
+                        <div className="w-16">
+                          <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Pedir:</label>
                           <input
                             type="number"
                             min="1"
                             value={item.cantidadPedir}
                             onChange={(e) => handleUpdateQty(item.id, parseInt(e.target.value) || 1)}
-                            className="w-20 px-2 py-2 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center font-bold focus:outline-none focus:border-[#206DDA]"
+                            className="w-full px-1.5 py-1 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs font-bold focus:outline-none focus:border-[#206DDA]"
                           />
-                          <p className="text-yellow-400 font-bold text-sm">
-                            Subtotal: ${formatCurrency(item.costo * item.cantidadPedir)}
+                        </div>
+
+                        {/* Subtotal */}
+                        <div className="w-16">
+                          <p className="text-xs text-yellow-400 font-bold text-center">
+                            ${formatCurrency(item.costo * item.cantidadPedir)}
                           </p>
                         </div>
+
+                        {/* Botón Eliminar */}
+                        <button
+                          onClick={() => handleRemoveItem(item.id)}
+                          className="p-1 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded transition-colors flex-shrink-0"
+                          title="Eliminar producto"
+                        >
+                          <X className="w-4 h-4 text-red-400 light-mode:text-red-600" />
+                        </button>
                       </div>
                     ))}
                   </div>
