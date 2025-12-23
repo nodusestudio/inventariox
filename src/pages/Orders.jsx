@@ -28,6 +28,8 @@ export default function Orders({
   const [toast, setToast] = useState(null);
   const [formData, setFormData] = useState({
     proveedor: '',
+    fechaEntrega: '',
+    horaEntrega: '',
     items: []
   });
 
@@ -96,6 +98,8 @@ export default function Orders({
     const newOrder = {
       proveedor: formData.proveedor,
       fecha: new Date().toISOString().split('T')[0],
+      fechaEntrega: formData.fechaEntrega,
+      horaEntrega: formData.horaEntrega,
       items: formData.items,
       total: formData.items.reduce((sum, item) => sum + ((item.costo || 0) * item.cantidadPedir), 0),
       estado: 'Pendiente'
@@ -105,7 +109,7 @@ export default function Orders({
       const orderId = await addOrder(user.uid, newOrder);
       setOrders([...orders, { id: orderId, ...newOrder }]);
       setIsAddingPedido(false);
-      setFormData({ proveedor: '', items: [] });
+      setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', items: [] });
       showToast('✓ Pedido creado exitosamente', 'success');
     } catch (error) {
       console.error('Error creating order:', error);
@@ -178,22 +182,52 @@ export default function Orders({
 
   // Recibir mercancía - actualizar inventario
   const handleReceiveOrder = async (orderId) => {
+    // Validar que el ID del pedido existe
+    if (!orderId) {
+      console.warn('⚠️ Order ID is undefined');
+      showToast('❌ Error: ID de pedido inválido', 'error');
+      return;
+    }
+
     const order = orders.find(o => o.id === orderId);
-    if (!order) return;
+    if (!order) {
+      console.warn('⚠️ Order not found for ID:', orderId);
+      showToast('❌ Error: Pedido no encontrado', 'error');
+      return;
+    }
+
+    // Validar que el pedido tiene productos
+    if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
+      console.warn('⚠️ Order items are undefined or empty:', order);
+      showToast('❌ Error: Pedido sin productos', 'error');
+      return;
+    }
 
     try {
       // Actualizar stock para cada producto en el pedido
       for (const item of order.items) {
+        // Validar cada item
+        if (!item.id) {
+          console.warn('⚠️ Item missing ID:', item);
+          continue;
+        }
+        if (!item.cantidadPedir || item.cantidadPedir <= 0) {
+          console.warn('⚠️ Item missing or invalid quantity:', item);
+          continue;
+        }
+
         const product = products.find(p => p.id === item.id);
         if (product) {
-          const newStock = (product.stockActual || 0) + (item.cantidadPedir || 0);
-          await updateProduct(user.uid, item.id, { stockActual: newStock });
+          const newStock = (product.stockActual || 0) + item.cantidadPedir;
+          await updateProduct(item.id, { stockActual: newStock });
+        } else {
+          console.warn('⚠️ Product not found for item:', item);
         }
       }
 
       // Actualizar estado del pedido a "Recibido"
       const updatedOrder = { ...order, estado: 'Recibido' };
-      await updateOrder(user.uid, orderId, { estado: 'Recibido' });
+      await updateOrder(orderId, { estado: 'Recibido' });
       setOrders(orders.map(o => o.id === orderId ? updatedOrder : o));
       setConfirmReceive(null);
       showToast('✓ Mercancía recibida y stock actualizado', 'success');
@@ -223,13 +257,85 @@ export default function Orders({
 
   // Generar mensaje de WhatsApp
   const generateWhatsAppMessage = (order) => {
-    const itemsList = order.items
-      .map(item => `• ${item.nombre}: ${item.cantidadPedir} unidades`)
-      .join('%0A');
-    
-    const message = `Hola, le escribo respecto al pedido: ${order.id}%0A%0AProveedor: ${order.proveedor}%0AFecha: ${formatDate(order.fecha)}%0A%0AProductos:%0A${itemsList}%0A%0ATotal: $${formatCurrency(order.total)}%0A%0AGracias!`;
-    
-    return message;
+    try {
+      // Validar datos críticos
+      if (!order) {
+        console.warn('⚠️ Order object is undefined');
+        return '';
+      }
+
+      // Obtener nombre del proveedor
+      const supplierName = order.supplierName || order.proveedor || 'Proveedor';
+
+      // Formatear fecha con Intl.DateTimeFormat
+      let fechaFormato = 'Por confirmar';
+      if (order.fechaEntrega) {
+        try {
+          const [año, mes, día] = order.fechaEntrega.split('-');
+          const date = new Date(año, parseInt(mes) - 1, día);
+          
+          const formatter = new Intl.DateTimeFormat('es-ES', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          
+          fechaFormato = formatter.format(date);
+          // Capitalizar primer carácter (viernes → Viernes)
+          fechaFormato = fechaFormato.charAt(0).toUpperCase() + fechaFormato.slice(1);
+        } catch (error) {
+          console.warn('⚠️ Error formatting delivery date:', error);
+          fechaFormato = order.fechaEntrega || 'Por confirmar';
+        }
+      }
+
+      // Obtener hora
+      const hora = order.horaEntrega || 'Por confirmar';
+
+      // Validar y construir lista de items
+      let itemsList = '';
+      if (order.items && Array.isArray(order.items) && order.items.length > 0) {
+        const validItems = order.items.filter(item => {
+          if (!item.nombre || !item.cantidadPedir) {
+            console.warn('⚠️ Item missing nombre or cantidadPedir:', item);
+            return false;
+          }
+          return true;
+        });
+
+        if (validItems.length === 0) {
+          console.warn('⚠️ No valid items in order');
+          itemsList = '- Sin productos';
+        } else {
+          itemsList = validItems
+            .map(item => `- ${item.nombre}: ${item.cantidadPedir} un.`)
+            .join('%0A');
+        }
+      } else {
+        console.warn('⚠️ Order items are undefined or empty');
+        itemsList = '- Sin productos';
+      }
+
+      // Construir mensaje profesional con formato exacto
+      const message = encodeURIComponent(
+        `Hola ${supplierName}, te adjunto el pedido de *ROAL BURGER*:
+
+El pedido lo necesito para el *${fechaFormato}* a las *${hora}*
+
+*Detalle del pedido:*
+${decodeURIComponent(itemsList)}
+
+Me confirmas por favor el total, gracias.
+
+_Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
+      );
+
+      return message;
+    } catch (error) {
+      console.error('Error generating WhatsApp message:', error);
+      return '';
+    }
   };
 
   // Copiar al portapapeles
@@ -246,7 +352,7 @@ export default function Orders({
 
   // Obtener número del proveedor
   const getProviderPhone = (providerName) => {
-    const provider = providers.find(p => p.nombre === providerName);
+    const provider = listaProveedores.find(p => p.nombre === providerName);
     return provider?.telefono || provider?.whatsapp || null;
   };
 
@@ -302,7 +408,7 @@ export default function Orders({
               <button
                 onClick={() => {
                   setIsAddingPedido(false);
-                  setFormData({ proveedor: '', items: [] });
+                  setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', items: [] });
                 }}
                 className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors"
               >
@@ -328,6 +434,32 @@ export default function Orders({
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {/* Fecha y Hora de Entrega */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                    📅 Fecha de Entrega
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.fechaEntrega}
+                    onChange={(e) => setFormData({ ...formData, fechaEntrega: e.target.value })}
+                    className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                    🕐 Hora de Entrega
+                  </label>
+                  <input
+                    type="time"
+                    value={formData.horaEntrega}
+                    onChange={(e) => setFormData({ ...formData, horaEntrega: e.target.value })}
+                    className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Selector de Productos */}
@@ -420,7 +552,7 @@ export default function Orders({
                 <button
                   onClick={() => {
                     setIsAddingPedido(false);
-                    setFormData({ proveedor: '', items: [] });
+                    setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', items: [] });
                   }}
                   className="flex-1 px-6 py-3 bg-gray-700 light-mode:bg-gray-300 hover:bg-gray-600 light-mode:hover:bg-gray-400 text-white light-mode:text-gray-900 font-bold rounded-lg transition-all"
                 >

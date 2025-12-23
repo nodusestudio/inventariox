@@ -11,7 +11,7 @@ import {
   updateProduct,
   deleteProduct,
   addMovement,
-  getProviders
+  getAllProviders
 } from '../services/firebaseService';
 
 // Función para formatear números como moneda
@@ -56,7 +56,7 @@ export default function Stock({
       setLoading(true);
       const [productsData, providersData] = await Promise.all([
         getProducts(user.uid),
-        getProviders(user.uid)
+        getAllProviders()
       ]);
       setProducts(productsData);
       setListaProveedores(providersData);

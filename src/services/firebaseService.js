@@ -148,6 +148,21 @@ export const getProviders = async (userId) => {
   }
 };
 
+// Obtener todos los proveedores (debug/global)
+export const getAllProviders = async () => {
+  try {
+    const querySnapshot = await getDocs(collection(db, 'providers'));
+    const providers = [];
+    querySnapshot.forEach((doc) => {
+      providers.push({ id: doc.id, ...doc.data() });
+    });
+    return providers;
+  } catch (error) {
+    console.error('Error getting all providers:', error);
+    return [];
+  }
+};
+
 export const updateProvider = async (docId, providerData) => {
   try {
     const providerRef = doc(db, 'providers', docId);

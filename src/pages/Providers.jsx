@@ -4,16 +4,11 @@ import ConfirmationModal from '../components/ConfirmationModal';
 import { useState, useEffect } from 'react';
 import { t } from '../utils/translations';
 import { cleanPhoneNumber } from '../utils/helpers';
+import { addProvider, getProviders, updateProvider, deleteProvider } from '../services/firebaseService';
 
-export default function Providers({ language = 'es', providersData = [], setProvidersData }) {
+export default function Providers({ language = 'es', providersData = [], setProvidersData, user }) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [providers, setProviders] = useState(() => {
-    if (providersData && providersData.length > 0) {
-      return providersData;
-    }
-    const saved = localStorage.getItem('inventariox_providers');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [providers, setProviders] = useState([]);
 
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -25,16 +20,23 @@ export default function Providers({ language = 'es', providersData = [], setProv
     email: '',
     whatsapp: ''
   });
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Guardar cambios en localStorage y en App.jsx
+  // Cargar proveedores desde Firestore
   useEffect(() => {
-    if (providers.length > 0) {
-      localStorage.setItem('inventariox_providers', JSON.stringify(providers));
-      if (setProvidersData) {
-        setProvidersData(providers);
+    const loadProviders = async () => {
+      if (!user) return;
+      try {
+        const data = await getProviders(user.uid);
+        setProviders(data);
+        if (setProvidersData) setProvidersData(data);
+      } catch (error) {
+        console.error('Error al cargar proveedores:', error);
       }
-    }
-  }, [providers, setProvidersData]);
+    };
+
+    loadProviders();
+  }, [user, setProvidersData]);
 
   const filteredProviders = providers.filter(p =>
     p.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -58,7 +60,13 @@ export default function Providers({ language = 'es', providersData = [], setProv
   };
 
   // Guardar proveedor (nuevo o editado)
-  const handleSaveProvider = () => {
+  const handleSaveProvider = async (e) => {
+    if (e) e.preventDefault();
+    if (!user || !user.uid) {
+      alert(language === 'es' ? 'Debes iniciar sesión para guardar proveedores' : 'You must be logged in to save providers');
+      return;
+    }
+    if (isSaving) return;
     if (!formData.nombre || !formData.whatsapp) {
       alert(language === 'es' ? 'Por favor completa los campos obligatorios (Nombre y WhatsApp)' : 'Please fill required fields (Name and WhatsApp)');
       return;
@@ -72,34 +80,45 @@ export default function Providers({ language = 'es', providersData = [], setProv
       whatsapp: cleanPhoneNumber(formData.whatsapp)
     };
 
-    if (isEditing) {
-      // Editar proveedor existente
-      const updatedProviders = providers.map(p =>
-        p.id === editingId ? { ...providerData, id: p.id } : p
-      );
-      setProviders(updatedProviders);
-      if (setProvidersData) setProvidersData(updatedProviders);
-    } else {
-      // Agregar nuevo proveedor
-      const newProvider = {
-        ...providerData,
-        id: Math.max(...providers.map(p => p.id), 0) + 1
-      };
-      const updatedProviders = [...providers, newProvider];
-      setProviders(updatedProviders);
-      if (setProvidersData) setProvidersData(updatedProviders);
+    setIsSaving(true);
+    try {
+      if (isEditing) {
+        await updateProvider(editingId, providerData);
+        const updatedProviders = providers.map(p =>
+          p.id === editingId ? { ...providerData, id: p.id } : p
+        );
+        setProviders(updatedProviders);
+        if (setProvidersData) setProvidersData(updatedProviders);
+      } else {
+        const newId = await addProvider(user.uid, providerData);
+        const newProvider = { ...providerData, id: newId, userId: user.uid };
+        const updatedProviders = [...providers, newProvider];
+        setProviders(updatedProviders);
+        if (setProvidersData) setProvidersData(updatedProviders);
+      }
+      setShowModal(false);
+      setFormData({ nombre: '', contacto: '', email: '', whatsapp: '' });
+    } catch (error) {
+      console.error('Error guardando proveedor:', error);
+      alert(language === 'es' ? 'Error guardando proveedor' : 'Error saving provider');
+    } finally {
+      setIsSaving(false);
     }
-
-    setShowModal(false);
-    setFormData({ nombre: '', contacto: '', email: '', whatsapp: '' });
   };
 
   // Confirmar y eliminar proveedor
-  const handleDeleteProvider = (id) => {
-    const updatedProviders = providers.filter(p => p.id !== id);
-    setProviders(updatedProviders);
-    if (setProvidersData) setProvidersData(updatedProviders);
-    setConfirmDelete(null);
+  const handleDeleteProvider = async (id) => {
+    try {
+      await deleteProvider(id);
+      const updatedProviders = providers.filter(p => p.id !== id);
+      setProviders(updatedProviders);
+      if (setProvidersData) setProvidersData(updatedProviders);
+    } catch (error) {
+      console.error('Error eliminando proveedor:', error);
+      alert(language === 'es' ? 'Error eliminando proveedor' : 'Error deleting provider');
+    } finally {
+      setConfirmDelete(null);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -256,9 +275,10 @@ export default function Providers({ language = 'es', providersData = [], setProv
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={handleSaveProvider}
-                  className="flex-1 px-4 py-2 bg-primary hover:bg-blue-600 text-white font-semibold rounded-lg transition-colors"
+                  disabled={isSaving}
+                  className={`flex-1 px-4 py-2 rounded-lg font-semibold transition-colors text-white ${isSaving ? 'bg-blue-300 cursor-not-allowed' : 'bg-primary hover:bg-blue-600'}`}
                 >
-                  {language === 'es' ? 'Guardar' : 'Save'}
+                  {isSaving ? (language === 'es' ? 'Guardando...' : 'Saving...') : (language === 'es' ? 'Guardar' : 'Save')}
                 </button>
                 <button
                   onClick={() => setShowModal(false)}
