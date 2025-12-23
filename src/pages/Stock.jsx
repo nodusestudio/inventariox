@@ -50,29 +50,36 @@ export default function Stock({
     onShowToast?.(message, type);
   };
 
-  // Cargar productos y proveedores al montar el componente
-  useEffect(() => {
+  const loadProvidersAndProducts = async () => {
     if (!user) return;
-    
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const [productsData, providersData] = await Promise.all([
-          getProducts(user.uid),
-          getProviders(user.uid)
-        ]);
-        setProducts(productsData);
-        setListaProveedores(providersData);
-      } catch (error) {
-        console.error('Error loading data:', error);
-        showToast('❌ Error al cargar los datos', 'error');
-      } finally {
-        setLoading(false);
-      }
-    };
+    try {
+      setLoading(true);
+      const [productsData, providersData] = await Promise.all([
+        getProducts(user.uid),
+        getProviders(user.uid)
+      ]);
+      setProducts(productsData);
+      setListaProveedores(providersData);
+      console.log('Proveedores cargados:', providersData);
+    } catch (error) {
+      console.error('Error loading data:', error);
+      showToast('❌ Error al cargar los datos', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    loadData();
+  // Cargar al montar
+  useEffect(() => {
+    loadProvidersAndProducts();
   }, [user]);
+
+  // Refrescar proveedores al abrir modal de nuevo producto
+  useEffect(() => {
+    if (showModal) {
+      loadProvidersAndProducts();
+    }
+  }, [showModal]);
 
   // Formulario para nuevo producto
   const [formData, setFormData] = useState({
