@@ -1,5 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Edit2, X, Save, Moon, Sun, Globe } from 'lucide-react';
+import { Edit2, X, Save, Moon, Sun, Globe, Lock, Trash2, LogOut } from 'lucide-react';
+import { auth } from '../config/firebase';
+import { updatePassword, deleteUser, signOut } from 'firebase/auth';
+import Swal from 'sweetalert2';
+import Toast from '../components/Toast';
+import { deleteAllUserData } from '../services/firebaseService';
 
 export default function Settings({
   language = 'es',
@@ -8,6 +13,7 @@ export default function Settings({
   setTheme = () => {},
   companyData,
   setCompanyData,
+  onLogout = () => {}
 }) {
   const [savedData, setSavedData] = useState(companyData || {
     nombreEstablecimiento: 'Mi Empresa',
@@ -25,6 +31,10 @@ export default function Settings({
   const [saveMessage, setSaveMessage] = useState('');
   const [tempTheme, setTempTheme] = useState(theme);
   const [tempLanguage, setTempLanguage] = useState(language);
+  const [toast, setToast] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   // Sincronizar con companyData cuando cambia desde otra sección
   useEffect(() => {
@@ -62,8 +72,121 @@ export default function Settings({
     setIsEditing(false);
   };
 
+  // Cambiar contraseña
+  const handleChangePassword = async () => {
+    if (!newPassword || newPassword.length < 6) {
+      setToast({ message: '❌ La contraseña debe tener al menos 6 caracteres', type: 'error' });
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await updatePassword(auth.currentUser, newPassword);
+      setToast({ message: '✓ Contraseña cambiada exitosamente', type: 'success' });
+      setNewPassword('');
+      setShowChangePassword(false);
+    } catch (err) {
+      console.error('Error changing password:', err);
+      
+      if (err.code === 'auth/requires-recent-login') {
+        setToast({ 
+          message: '⚠️ Sesión expirada. Cierra sesión e inicia de nuevo para cambiar tu contraseña.', 
+          type: 'error' 
+        });
+      } else if (err.code === 'auth/weak-password') {
+        setToast({ message: '❌ La contraseña es muy débil', type: 'error' });
+      } else {
+        setToast({ message: `❌ Error: ${err.message}`, type: 'error' });
+      }
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
+  // Eliminar cuenta
+  const handleDeleteAccount = async () => {
+    const result = await Swal.fire({
+      title: '⚠️ Eliminar Cuenta Permanentemente',
+      html: `<p style="font-size: 14px; line-height: 1.6; color: #d1d5db;">
+               <strong>Esta acción es IRREVERSIBLE.</strong><br><br>
+               Se eliminarán:
+               <ul style="text-align: left; margin: 10px 0; color: #f87171;">
+                 <li>Tu cuenta de usuario</li>
+                 <li>Todos tus productos</li>
+                 <li>Todos tus pedidos</li>
+                 <li>Todos tus proveedores</li>
+                 <li>Todos tus movimientos de inventario</li>
+               </ul>
+             </p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, eliminar mi cuenta',
+      cancelButtonText: 'Cancelar',
+      backdrop: 'rgba(15, 23, 42, 0.8)',
+      customClass: {
+        popup: 'swal-dark-popup'
+      }
+    });
+
+    if (result.isConfirmed) {
+      // Pedir confirmación final
+      const finalConfirm = await Swal.fire({
+        title: 'Confirmación Final',
+        html: '<p style="font-size: 14px; color: #d1d5db;">¿Estás completamente seguro? Esta acción no se puede deshacer.</p>',
+        icon: 'error',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#6b7280',
+        confirmButtonText: 'Sí, eliminar definitivamente',
+        cancelButtonText: 'Cancelar',
+        backdrop: 'rgba(15, 23, 42, 0.8)',
+        customClass: {
+          popup: 'swal-dark-popup'
+        }
+      });
+
+      if (finalConfirm.isConfirmed) {
+        try {
+          // Eliminar datos en Firestore
+          await deleteAllUserData(auth.currentUser.uid);
+
+          // Eliminar usuario de Firebase Auth
+          await deleteUser(auth.currentUser);
+
+          // Logout y redirigir
+          setToast({ message: '✓ Cuenta eliminada correctamente', type: 'success' });
+          setTimeout(() => {
+            onLogout?.();
+          }, 1000);
+        } catch (err) {
+          console.error('Error deleting account:', err);
+          
+          if (err.code === 'auth/requires-recent-login') {
+            setToast({ 
+              message: '⚠️ Sesión expirada. Cierra sesión e inicia de nuevo para eliminar tu cuenta.', 
+              type: 'error' 
+            });
+          } else {
+            setToast({ message: `❌ Error: ${err.message}`, type: 'error' });
+          }
+        }
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#111827] light-mode:bg-gray-50 p-4 sm:p-6 lg:p-8 transition-colors duration-300">
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+
       <div className="max-w-4xl mx-auto">
         {/* Encabezado */}
         <div className="mb-8">
@@ -290,6 +413,76 @@ export default function Settings({
                     💾 Guardar Todo
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Tarjeta de Seguridad */}
+            <div className="bg-[#1f2937] light-mode:bg-white rounded-lg border border-gray-700 light-mode:border-gray-200 p-6">
+              <h3 className="text-xl font-bold text-white light-mode:text-gray-900 mb-6">
+                🔒 Seguridad
+              </h3>
+
+              <div className="space-y-5">
+                {/* Cambiar Contraseña */}
+                {!showChangePassword ? (
+                  <button
+                    onClick={() => setShowChangePassword(true)}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-[#206DDA] hover:bg-blue-600 text-white font-bold rounded-lg transition-all shadow-lg hover:shadow-xl"
+                  >
+                    <Lock className="w-5 h-5" />
+                    Cambiar Contraseña
+                  </button>
+                ) : (
+                  <div className="space-y-3 p-4 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                    <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wide">
+                      Nueva Contraseña
+                    </label>
+                    <input
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full px-4 py-2.5 bg-[#111827] light-mode:bg-white border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none transition-all"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleChangePassword}
+                        disabled={passwordLoading}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white font-bold rounded-lg transition-all"
+                      >
+                        {passwordLoading ? 'Actualizando...' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowChangePassword(false);
+                          setNewPassword('');
+                        }}
+                        className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-lg transition-all"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Separador */}
+                <div className="border-t border-gray-600 light-mode:border-gray-300"></div>
+
+                {/* Eliminar Cuenta */}
+                <button
+                  onClick={handleDeleteAccount}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-all shadow-lg hover:shadow-xl"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  Eliminar Mi Cuenta
+                </button>
+
+                {/* Advertencia */}
+                <div className="p-3 bg-red-900/20 light-mode:bg-red-100 border border-red-500/50 light-mode:border-red-400 rounded-lg">
+                  <p className="text-xs text-red-400 light-mode:text-red-700 font-semibold">
+                    ⚠️ Las acciones de seguridad requieren autenticación reciente. Si encuentras problemas, cierra sesión e inicia de nuevo.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

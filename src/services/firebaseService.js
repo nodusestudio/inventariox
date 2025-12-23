@@ -297,3 +297,58 @@ export const getCompanyData = async (userId) => {
     return { nombre: '', rfc: '', direccion: '', telefono: '', email: '', logo: '' };
   }
 };
+// ============================================================================
+// ELIMINACIÓN DE DATOS DE USUARIO (para cuando se elimina la cuenta)
+// ============================================================================
+
+export const deleteAllUserData = async (userId) => {
+  try {
+    // Eliminar todos los productos del usuario
+    const productsQuery = query(collection(db, 'products'), where('userId', '==', userId));
+    const productsSnapshot = await getDocs(productsQuery);
+    for (const doc of productsSnapshot.docs) {
+      await deleteDoc(doc.ref);
+    }
+
+    // Eliminar todo el stock del usuario
+    const stockQuery = query(collection(db, 'stock'), where('userId', '==', userId));
+    const stockSnapshot = await getDocs(stockQuery);
+    for (const doc of stockSnapshot.docs) {
+      await deleteDoc(doc.ref);
+    }
+
+    // Eliminar todos los proveedores del usuario
+    const providersQuery = query(collection(db, 'providers'), where('userId', '==', userId));
+    const providersSnapshot = await getDocs(providersQuery);
+    for (const doc of providersSnapshot.docs) {
+      await deleteDoc(doc.ref);
+    }
+
+    // Eliminar todos los pedidos del usuario
+    const ordersQuery = query(collection(db, 'orders'), where('userId', '==', userId));
+    const ordersSnapshot = await getDocs(ordersQuery);
+    for (const doc of ordersSnapshot.docs) {
+      await deleteDoc(doc.ref);
+    }
+
+    // Eliminar todos los movimientos del usuario
+    const movementsQuery = query(collection(db, 'movements'), where('userId', '==', userId));
+    const movementsSnapshot = await getDocs(movementsQuery);
+    for (const doc of movementsSnapshot.docs) {
+      await deleteDoc(doc.ref);
+    }
+
+    // Eliminar datos de la empresa del usuario
+    const companyQuery = query(collection(db, 'company'), where('userId', '==', userId));
+    const companySnapshot = await getDocs(companyQuery);
+    for (const doc of companySnapshot.docs) {
+      await deleteDoc(doc.ref);
+    }
+
+    console.log('All user data deleted successfully');
+    return true;
+  } catch (error) {
+    console.error('Error deleting user data:', error);
+    throw error;
+  }
+};
