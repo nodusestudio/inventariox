@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle, Cloud, Clock, Package, Users, FileJson, ChevronDown } from 'lucide-react';
 import Toast from '../components/Toast';
 import { t } from '../utils/translations';
+import { deleteAllUserData } from '../services/firebaseService';
 
 // ============================================================================
 // FUNCIONES DE IMPORTACIÓN
@@ -221,6 +222,7 @@ export default function DatabasePage({
   setStockData,
   setOrdersData,
   setCompanyData,
+  user,
 }) {
   const [importing, setImporting] = useState(false);
   const [resetConfirm, setResetConfirm] = useState(0);
@@ -463,7 +465,7 @@ export default function DatabasePage({
   };
 
   // Handler para resetear sistema
-  const handleReset = () => {
+  const handleReset = async () => {
     if (resetConfirm === 0) {
       setResetConfirm(1);
       return;
@@ -476,10 +478,20 @@ export default function DatabasePage({
 
     if (resetConfirm === 2) {
       try {
-        // Limpiar todo el localStorage
-        localStorage.clear();
+        // Mostrar notificación de progreso
+        showToast('🗑️ Limpiando base de datos...', 'info');
 
-        // Resetear estados
+        // Eliminar datos en Firestore si el usuario existe
+        if (user?.uid) {
+          await deleteAllUserData(user.uid);
+          console.log('✅ Datos de Firestore eliminados para usuario:', user.uid);
+        }
+
+        // Limpiar localStorage
+        localStorage.clear();
+        console.log('✅ LocalStorage limpiado');
+
+        // Resetear estados de la aplicación
         setCompanyData({
           nombreEmpresa: 'MI EMPRESA',
           nitRut: '12.345.678-9',
@@ -489,12 +501,17 @@ export default function DatabasePage({
         setProductsData([]);
         setStockData([]);
         setOrdersData([]);
+        setResetConfirm(0);
 
-        alert('✅ Sistema restablecido completamente. Recargando...');
-        setTimeout(() => window.location.reload(), 1500);
+        console.log('✅ Estado local restablecido');
+
+        // Mostrar confirmación
+        showToast('✅ Sistema restablecido completamente - Sin recarga', 'success');
+
       } catch (error) {
-        console.error('Reset error:', error);
-        alert('❌ Error al restablecer el sistema');
+        console.error('❌ Error al restablecer el sistema:', error);
+        showToast('❌ Error al limpiar la base de datos: ' + error.message, 'error');
+        setResetConfirm(0);
       }
     }
   };
