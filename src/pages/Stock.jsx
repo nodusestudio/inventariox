@@ -43,6 +43,7 @@ export default function Stock({
   const [showExitReason, setShowExitReason] = useState(false);
   const [pendingProductId, setPendingProductId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Mostrar notificación Toast
   const showToast = (message, type = 'success') => {
@@ -133,6 +134,9 @@ export default function Stock({
 
   // Validar y guardar producto
   const handleSaveProduct = async () => {
+    // Anti-duplicado: no permitir múltiples clics
+    if (isSaving) return;
+    
     if (!formData.nombre || !formData.proveedor || !formData.unidad || formData.costo === '') {
       alert(language === 'es' ? 'Por favor completa todos los campos requeridos' : 'Please fill all required fields');
       return;
@@ -167,6 +171,7 @@ export default function Stock({
       stockCompra: parseInt(formData.stockCompra) || 10
     };
 
+    setIsSaving(true);
     try {
       if (isEditing) {
         await updateProduct(user.uid, editingId, productData);
@@ -185,6 +190,8 @@ export default function Stock({
     } catch (error) {
       console.error('Error saving product:', error);
       showToast('❌ Error al guardar el producto', 'error');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -620,9 +627,10 @@ export default function Stock({
               </button>
               <button
                 onClick={handleSaveProduct}
-                className="w-full md:w-auto px-4 py-2 bg-[#206DDA] hover:bg-[#1a5ab8] text-white rounded-lg font-semibold transition-colors"
+                disabled={isSaving}
+                className="w-full md:w-auto px-4 py-2 bg-[#206DDA] hover:bg-[#1a5ab8] disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors"
               >
-                {language === 'es' ? 'Guardar' : 'Save'}
+                {isSaving ? '⏳ Guardando...' : (language === 'es' ? 'Guardar' : 'Save')}
               </button>
             </div>
           </div>
