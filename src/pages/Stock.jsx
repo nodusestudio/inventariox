@@ -509,9 +509,14 @@ export default function Stock({
                     name="proveedor"
                     value={formData.proveedor}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
+                    disabled={loading}
+                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <option value="">{language === 'es' ? 'Seleccionar proveedor' : 'Select provider'}</option>
+                    <option value="">
+                      {loading 
+                        ? (language === 'es' ? '⏳ Cargando proveedores...' : '⏳ Loading providers...') 
+                        : (language === 'es' ? 'Seleccionar proveedor' : 'Select provider')}
+                    </option>
                     {listaProveedores.length > 0 ? (
                       listaProveedores.map(provider => (
                         <option key={provider.id} value={provider.nombre}>
@@ -519,7 +524,7 @@ export default function Stock({
                         </option>
                       ))
                     ) : (
-                      <option value="" disabled>{language === 'es' ? 'No hay proveedores registrados' : 'No providers registered'}</option>
+                      !loading && <option value="" disabled>{language === 'es' ? 'No hay proveedores registrados' : 'No providers registered'}</option>
                     )}
                   </select>
                   {listaProveedores.length === 0 && (

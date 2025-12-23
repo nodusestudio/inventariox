@@ -219,15 +219,22 @@ export default function Orders({
         const product = products.find(p => p.id === item.id);
         if (product) {
           const newStock = (product.stockActual || 0) + item.cantidadPedir;
-          await updateProduct(item.id, { stockActual: newStock });
+          // Sanitizar datos: asegurar que no sean undefined
+          const sanitizedData = {
+            stockActual: typeof newStock === 'number' && !isNaN(newStock) ? newStock : 0
+          };
+          await updateProduct(item.id, sanitizedData);
         } else {
           console.warn('⚠️ Product not found for item:', item);
         }
       }
 
-      // Actualizar estado del pedido a "Recibido"
+      // Actualizar estado del pedido a "Recibido" con datos sanitizados
       const updatedOrder = { ...order, estado: 'Recibido' };
-      await updateOrder(orderId, { estado: 'Recibido' });
+      const sanitizedOrder = {
+        estado: updatedOrder.estado || 'Recibido'
+      };
+      await updateOrder(orderId, sanitizedOrder);
       setOrders(orders.map(o => o.id === orderId ? updatedOrder : o));
       setConfirmReceive(null);
       showToast('✓ Mercancía recibida y stock actualizado', 'success');
@@ -425,9 +432,12 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                 <select
                   value={formData.proveedor}
                   onChange={(e) => setFormData({ ...formData, proveedor: e.target.value })}
-                  className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none"
+                  disabled={loading}
+                  className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <option value="">-- Elige un proveedor --</option>
+                  <option value="">
+                    {loading ? '⏳ Cargando proveedores...' : '-- Elige un proveedor --'}
+                  </option>
                   {listaProveedores.map(p => (
                     <option key={p.id} value={p.nombre}>
                       {p.nombre} {p.contacto ? `(${p.contacto})` : ''}
@@ -661,8 +671,10 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                         const phone = getProviderPhone(order.proveedor);
                         if (phone) {
                           const message = generateWhatsAppMessage(order);
+                          showToast('📱 Abriendo WhatsApp...', 'info');
                           window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
                         } else {
+                          showToast('📋 Mensaje copiado al portapapeles', 'info');
                           copyToClipboard(order);
                         }
                       }}
