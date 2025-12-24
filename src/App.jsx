@@ -10,6 +10,7 @@ import Providers from './pages/Providers';
 import Orders from './pages/Orders';
 import Settings from './pages/Settings';
 import DatabasePage from './pages/Database';
+import Reports from './pages/Reports';
 import Toast from './components/Toast';
 import { getProducts, getStock, getProviders, getOrders, getMovements, getCompanyData } from './services/firebaseService';
 
@@ -186,6 +187,16 @@ export default function App() {
         setStockData={setStockData}
         setOrdersData={setOrdersData}
         setCompanyData={setCompanyData}
+        user={user}
+      />
+    ),
+    reports: (
+      <Reports
+        language={language}
+        ordersData={ordersData}
+        providersData={providersData}
+        productsData={productsData}
+        companyData={companyData}
         user={user}
       />
     ),

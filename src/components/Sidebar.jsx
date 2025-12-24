@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
+  FileText,
   LogOut
 } from 'lucide-react';
 import Logo from './Logo';
@@ -41,6 +42,7 @@ export default function Sidebar({ currentPage, setCurrentPage, user, onLogout, l
     { name: 'stock', icon: Boxes, label: 'Inventario' },
     { name: 'movements', icon: TrendingUp, label: 'Movimientos' },
     { name: 'orders', icon: ShoppingCart, label: 'Pedidos' },
+    { name: 'reports', icon: FileText, label: 'Reportes' },
     { name: 'database', icon: Database, label: 'Base de Datos' },
     { name: 'settings', icon: SettingsIcon, label: 'Configuración' },
   ];
