@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { FileDown, Calendar, DollarSign, Users, Package } from 'lucide-react';
+import { FileDown, Calendar, DollarSign, Users, Package, Trophy } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 
 // CLP formatter without decimals
@@ -30,6 +30,22 @@ export default function Reports({ ordersData = [], providersData = [], productsD
     }, 0);
   }, [filteredOrders]);
 
+  // Suggested savings: units not ordered thanks to stockActual
+  // Approximation: savings per item = min(stockEnMano, stockObjetivo) * costo
+  const suggestedSavings = useMemo(() => {
+    return filteredOrders.reduce((sum, o) => {
+      const items = o.items || [];
+      const orderSavings = items.reduce((acc, i) => {
+        const stockActual = (i.stockEnMano ?? 0);
+        const objetivo = (i.stockObjetivo ?? 0);
+        const costo = (i.costo ?? 0);
+        const savedUnits = Math.max(0, Math.min(stockActual, objetivo));
+        return acc + (savedUnits * costo);
+      }, 0);
+      return sum + orderSavings;
+    }, 0);
+  }, [filteredOrders]);
+
   // Total by provider
   const byProvider = useMemo(() => {
     const acc = {};
@@ -44,6 +60,8 @@ export default function Reports({ ordersData = [], providersData = [], productsD
       .map(([nombre, valor]) => ({ nombre, valor }))
       .sort((a, b) => b.valor - a.valor);
   }, [filteredOrders]);
+
+  const topProvider = byProvider.length > 0 ? byProvider[0] : null;
 
   // Ranking by product (investment)
   const productRanking = useMemo(() => {
@@ -63,7 +81,7 @@ export default function Reports({ ordersData = [], providersData = [], productsD
 
   // PDF generation
   const handleDownloadPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF('p', 'mm', 'a4');
     const genDate = new Date();
     const title = `${companyData?.nombreEmpresa || 'ROAL BURGER'} - Reporte de Gastos`;
     const period = `Periodo: ${month}/${year}`;
@@ -71,34 +89,56 @@ export default function Reports({ ordersData = [], providersData = [], productsD
 
     // Header
     doc.setFontSize(16);
-    doc.text(title, 14, 20);
+    doc.text(title, 12, 18);
     doc.setFontSize(11);
-    doc.text(period, 14, 28);
-    doc.text(genText, 14, 34);
+    doc.text(period, 12, 26);
+    doc.text(genText, 12, 32);
 
-    // Global total
+    // Summary
     doc.setFontSize(12);
-    doc.text(`Total Global: $${formatCLP(globalTotal)}`, 14, 44);
+    doc.text(`Total Global: $${formatCLP(globalTotal)}`, 12, 42);
+    doc.text(`Ahorro Sugerido: $${formatCLP(suggestedSavings)}`, 12, 48);
+    if (topProvider) {
+      doc.text(`Proveedor Top: ${topProvider.nombre} ($${formatCLP(topProvider.valor)})`, 12, 54);
+    }
+
+    // Savings bar chart (simple)
+    const chartX = 12;
+    let y = 62;
+    const chartW = 180;
+    const maxVal = Math.max(globalTotal, suggestedSavings) || 1;
+    const spendW = Math.max(10, Math.round((globalTotal / maxVal) * chartW));
+    const saveW = Math.max(10, Math.round((suggestedSavings / maxVal) * chartW));
+    doc.setDrawColor(0);
+    doc.setFillColor(52, 152, 219); // blue
+    doc.rect(chartX, y, spendW, 6, 'F');
+    doc.text('Gasto', chartX + spendW + 2, y + 5);
+    y += 10;
+    doc.setFillColor(46, 204, 113); // green
+    doc.rect(chartX, y, saveW, 6, 'F');
+    doc.text('Ahorro', chartX + saveW + 2, y + 5);
 
     // By provider
-    let y = 54;
+    y += 14;
     doc.setFontSize(12);
-    doc.text('Por Proveedor:', 14, y);
+    doc.text('Por Proveedor:', 12, y);
     y += 6;
     doc.setFontSize(10);
     byProvider.forEach(p => {
-      doc.text(`${p.nombre}: $${formatCLP(p.valor)}`, 18, y);
+      if (y > 270) { doc.addPage(); y = 12; }
+      doc.text(`${p.nombre}: $${formatCLP(p.valor)}`, 14, y);
       y += 5;
     });
 
     // Product ranking
     y += 4;
     doc.setFontSize(12);
-    doc.text('Top Productos por Inversión:', 14, y);
+    doc.text('Top Productos por Inversión:', 12, y);
     y += 6;
     doc.setFontSize(10);
     productRanking.forEach((r, idx) => {
-      doc.text(`#${idx + 1} ${r.nombre}: $${formatCLP(r.valor)}`, 18, y);
+      if (y > 270) { doc.addPage(); y = 12; }
+      doc.text(`#${idx + 1} ${r.nombre}: $${formatCLP(r.valor)}`, 14, y);
       y += 5;
     });
 
@@ -139,6 +179,32 @@ export default function Reports({ ordersData = [], providersData = [], productsD
         </button>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        <div className="bg-[#111827] border border-gray-700 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-gray-300">
+            <DollarSign className="w-5 h-5 text-blue-400" />
+            <span className="text-sm">Gasto Total Mensual</span>
+          </div>
+          <p className="mt-2 text-2xl font-black text-yellow-300">${formatCLP(globalTotal)}</p>
+        </div>
+        <div className="bg-[#111827] border border-gray-700 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-gray-300">
+            <Trophy className="w-5 h-5 text-green-400" />
+            <span className="text-sm">Ahorro Generado</span>
+          </div>
+          <p className="mt-2 text-2xl font-black text-green-300">${formatCLP(suggestedSavings)}</p>
+        </div>
+        <div className="bg-[#111827] border border-gray-700 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-gray-300">
+            <Users className="w-5 h-5 text-purple-400" />
+            <span className="text-sm">Proveedor con más gasto</span>
+          </div>
+          <p className="mt-2 text-lg font-bold text-white">{topProvider ? topProvider.nombre : 'Sin datos'}</p>
+          <p className="text-sm text-gray-400">{topProvider ? `$${formatCLP(topProvider.valor)}` : ''}</p>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
         <div>
@@ -174,23 +240,6 @@ export default function Reports({ ordersData = [], providersData = [], productsD
             </div>
           </div>
         </div>
-      </div>
-
-      {/* By Provider */}
-      <div className="mb-6 sm:mb-8">
-        <h2 className="text-lg sm:text-xl font-bold mb-3 text-white light-mode:text-gray-900 flex items-center gap-2"><Users className="w-5 h-5" /> Por Proveedor</h2>
-        {byProvider.length > 0 ? (
-          <div className="bg-[#111827] light-mode:bg-white border border-gray-700 light-mode:border-gray-300 rounded-lg p-4 divide-y divide-gray-800 light-mode:divide-gray-200">
-            {byProvider.map(p => (
-              <div key={p.nombre} className="py-2 flex items-center justify-between text-sm sm:text-base">
-                <span className="text-gray-300 light-mode:text-gray-800 font-semibold">{p.nombre}</span>
-                <span className="text-white light-mode:text-gray-900 font-bold">${formatCLP(p.valor)}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-400 light-mode:text-gray-600 text-sm">Sin datos en el periodo seleccionado.</p>
-        )}
       </div>
 
       {/* Product Ranking */}
