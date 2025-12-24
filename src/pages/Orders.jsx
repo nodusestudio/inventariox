@@ -233,11 +233,13 @@ export default function Orders({
         await deleteOrder(orderId);
         setOrders(orders.filter(o => o.id !== orderId));
         console.log('✅ Pedido eliminado exitosamente de Firestore y estado local');
+        setConfirmDelete(null); // Cerrar modal
         toast.success('Pedido eliminado exitosamente');
       } catch (error) {
         console.error('❌ Error al eliminar pedido:', error);
         toast.error('Error al eliminar el pedido');
         setOrders(orders);
+        setConfirmDelete(null); // Cerrar modal incluso si hay error
       }
     };
 
