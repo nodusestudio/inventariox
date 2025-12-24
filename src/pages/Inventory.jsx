@@ -3,6 +3,7 @@ import { Search, Plus, Edit2, Trash2, X } from 'lucide-react';
 import TableContainer from '../components/TableContainer';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { t } from '../utils/translations';
+import { deleteProduct } from '../services/firebaseService';
 
 // Función para formatear números como moneda (sin decimales, separador de miles)
 const formatCurrency = (value) => {
@@ -123,14 +124,18 @@ export default function Inventory({ productsData: initialData = [], setProductsD
     });
   };
 
-  // Confirmar y eliminar producto
-  const handleDeleteProduct = (id) => {
-    const updated = productsData.filter(p => p.id !== id);
-    setLocalProductsData(updated);
-    if (setProductsData) setProductsData(updated);
-    // Guardar en localStorage
-    localStorage.setItem('inventariox_products', JSON.stringify(updated));
-    setConfirmDelete(null);
+  // Confirmar y eliminar producto (Firebase + estado local)
+  const handleDeleteProduct = async (id) => {
+    try {
+      await deleteProduct(id);
+      const updated = productsData.filter(p => p.id !== id);
+      setLocalProductsData(updated);
+      if (setProductsData) setProductsData(updated);
+      localStorage.setItem('inventariox_products', JSON.stringify(updated));
+      setConfirmDelete(null);
+    } catch (error) {
+      console.error('❌ Error al eliminar producto:', error);
+    }
   };
 
   const handleInputChange = (e) => {

@@ -552,8 +552,8 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                           <p className="text-xs text-gray-400 light-mode:text-gray-600">${formatCurrency(item.costo)}/u</p>
                         </div>
 
-                        {/* Bloque de datos centrado */}
-                        <div className="flex items-center gap-3 flex-1 justify-center">
+                        {/* Bloque de datos centrado con anchos fijos */}
+                        <div className="flex items-center gap-3 flex-shrink-0 justify-center">
                           {/* Stock Actual */}
                           <div className="w-24">
                             <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Actual:</label>

@@ -311,7 +311,7 @@ export default function Stock({
         const stockActual = row.stockActual || 0;
         const stockMinimo = row.stockMinimo || 0;
 
-        if (stockActual <= stockMinimo) {
+        if (stockActual < stockMinimo) {
           return <span className="text-red-500 font-bold">{stockActual}</span>;
         }
         if (stockActual <= stockMinimo * 1.2) {

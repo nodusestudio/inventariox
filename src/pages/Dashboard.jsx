@@ -16,7 +16,7 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
     }
 
     const critical = data
-      .filter(item => item && item.stockActual <= item.stockMinimo)
+      .filter(item => item && (item.stockActual || 0) < (item.stockMinimo || 0))
       .map(item => ({
         nombre: item.nombre || 'Sin nombre',
         stockActual: item.stockActual || 0,
@@ -39,21 +39,19 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
   const lowStock = safeData.filter(item => (item.stockActual || 0) < (item.stockMinimo || 0)).length;
   
   // Calcular valor total: Suma de (Costo Unitario * Stock Actual)
-  const safeStockData = (stockData || []).filter(item => item);
-  const safeProducstData = (productsData || []).filter(item => item);
-  const totalValue = safeStockData.reduce((sum, stockItem) => {
-    const product = safeProducstData.find(p => p.id === stockItem.productoId);
-    if (product && product.costo && stockItem.stockActual) {
-      return sum + (product.costo * stockItem.stockActual);
-    }
-    return sum;
+  const baseProducts = (inventoryData && inventoryData.length ? inventoryData : productsData) || [];
+  const safeProducts = baseProducts.filter(item => item);
+  const totalValue = safeProducts.reduce((sum, item) => {
+    const costo = item.costo || 0;
+    const stock = item.stockActual || 0;
+    return sum + (costo * stock);
   }, 0);
   
   // Productos críticos: cantidad de productos por debajo del stock mínimo
-  const criticalProducts = safeStockData.filter(item => (item.stockActual || 0) <= (item.stockMinimo || 0)).length;
+  const criticalProducts = safeProducts.filter(item => (item.stockActual || 0) < (item.stockMinimo || 0)).length;
   
   // Total referencias: cantidad total de productos distintos
-  const totalReferences = safeProducstData.length;
+  const totalReferences = safeProducts.length;
 
   const columns = [
     { key: 'nombre', label: t(language, 'nombre') },
