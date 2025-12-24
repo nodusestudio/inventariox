@@ -15,6 +15,7 @@ import {
 export default function Orders({ 
   language = 'es', 
   user,
+  companyData = {},
   onShowToast = () => {}
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -309,7 +310,7 @@ export default function Orders({
   };
 
   // Generar mensaje de WhatsApp
-  const generateWhatsAppMessage = (order) => {
+  const generateWhatsAppMessage = (order, companyName) => {
     try {
       // Validar datos críticos
       if (!order) {
@@ -319,6 +320,7 @@ export default function Orders({
 
       // Obtener nombre del proveedor
       const supplierName = order.supplierName || order.proveedor || 'Proveedor';
+      const empresa = companyName || 'MI EMPRESA';
 
       // Formatear fecha con Intl.DateTimeFormat
       let fechaFormato = 'Por confirmar';
@@ -372,7 +374,7 @@ export default function Orders({
 
       // Construir mensaje profesional con formato exacto
       const message = encodeURIComponent(
-        `Hola ${supplierName}, te adjunto el pedido de *ROAL BURGER*:
+        `Hola ${supplierName}, te adjunto el pedido de *${empresa}*:
 
 El pedido lo necesito para el *${fechaFormato}* a las *${hora}*
 
@@ -760,8 +762,9 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                     <button
                       onClick={() => {
                         const phone = getProviderPhone(order.proveedor);
+                        const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'MI EMPRESA';
                         if (phone) {
-                          const message = generateWhatsAppMessage(order);
+                          const message = generateWhatsAppMessage(order, companyName);
                           showToast('📱 Abriendo WhatsApp...', 'info');
                           window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
                         } else {

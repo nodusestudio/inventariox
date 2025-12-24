@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Edit2, X, Save, Moon, Sun, Globe, Lock, Trash2, LogOut } from 'lucide-react';
+import { Edit2, X, Save, Moon, Sun, Globe, Lock, Trash2, LogOut, Image as ImageIcon } from 'lucide-react';
 import { auth } from '../config/firebase';
 import { updatePassword, deleteUser, signOut } from 'firebase/auth';
 import Swal from 'sweetalert2';
 import Toast from '../components/Toast';
-import { deleteAllUserData } from '../services/firebaseService';
+import { deleteAllUserData, uploadCompanyLogo } from '../services/firebaseService';
 
 export default function Settings({
   language = 'es',
@@ -16,15 +16,23 @@ export default function Settings({
   onLogout = () => {}
 }) {
   const [savedData, setSavedData] = useState(companyData || {
-    nombreEstablecimiento: 'Mi Empresa',
+    nombre: 'Mi Empresa',
+    rfc: '',
+    direccion: 'Dirección del Establecimiento',
+    telefono: '',
     nombreResponsable: 'Responsable',
     ubicacion: 'Ubicación / Sucursal',
+    logo: ''
   });
 
   const [formData, setFormData] = useState(companyData || {
-    nombreEstablecimiento: 'Mi Empresa',
+    nombre: 'Mi Empresa',
+    rfc: '',
+    direccion: 'Dirección del Establecimiento',
+    telefono: '',
     nombreResponsable: 'Responsable',
     ubicacion: 'Ubicación / Sucursal',
+    logo: ''
   });
 
   const [isEditing, setIsEditing] = useState(false);
@@ -35,6 +43,7 @@ export default function Settings({
   const [newPassword, setNewPassword] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Sincronizar con companyData cuando cambia desde otra sección
   useEffect(() => {
@@ -50,6 +59,37 @@ export default function Settings({
       ...prev,
       [name]: value
     }));
+  };
+
+  // Subir logo
+  const handleLogoUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      setToast({ message: '❌ El archivo debe ser menor a 2MB', type: 'error' });
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setToast({ message: '❌ Solo se aceptan imágenes', type: 'error' });
+      return;
+    }
+
+    try {
+      setUploading(true);
+      const url = await uploadCompanyLogo(auth.currentUser.uid, file);
+      setFormData({ ...formData, logo: url });
+      setSavedData({ ...savedData, logo: url });
+      setCompanyData({ ...formData, logo: url });
+      setToast({ message: '✓ Logo cargado exitosamente', type: 'success' });
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      setToast({ message: '❌ Error al subir el logo', type: 'error' });
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSave = () => {
@@ -225,35 +265,63 @@ export default function Settings({
                 </div>
 
                 <div className="space-y-6">
-                  {/* Nombre del Establecimiento */}
-                  <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
-                    <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
-                      Nombre del Establecimiento
-                    </p>
-                    <p className="text-xl font-bold text-[#206DDA] light-mode:text-gray-900">
-                      {savedData.nombreEstablecimiento || 'No definido'}
-                    </p>
-                  </div>
+                  {/* Logo Preview */}
+                  {savedData.logo && (
+                    <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
+                        Logo de la Empresa
+                      </p>
+                      <img src={savedData.logo} alt="Logo" className="h-20 w-auto rounded border-2 border-[#206DDA]" />
+                    </div>
+                  )}
 
-                  {/* Nombre del Responsable */}
-                  <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
-                    <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
-                      Nombre del Responsable
-                    </p>
-                    <p className="text-lg font-semibold text-white light-mode:text-gray-900">
-                      {savedData.nombreResponsable || 'No definido'}
-                    </p>
-                  </div>
+                  {/* Nombre de la Empresa */}
+                  {savedData.nombre && (
+                    <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
+                        Nombre de la Empresa
+                      </p>
+                      <p className="text-xl font-bold text-[#206DDA] light-mode:text-gray-900">
+                        {savedData.nombre}
+                      </p>
+                    </div>
+                  )}
 
-                  {/* Ubicación / Sucursal */}
-                  <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
-                    <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
-                      Ubicación / Sucursal
-                    </p>
-                    <p className="text-white light-mode:text-gray-900 leading-relaxed">
-                      {savedData.ubicacion || 'No definida'}
-                    </p>
-                  </div>
+                  {/* NIT / Identificación Fiscal */}
+                  {savedData.rfc && (
+                    <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
+                        NIT / Identificación Fiscal
+                      </p>
+                      <p className="text-lg font-semibold text-white light-mode:text-gray-900">
+                        {savedData.rfc}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Dirección */}
+                  {savedData.direccion && (
+                    <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
+                        Dirección
+                      </p>
+                      <p className="text-white light-mode:text-gray-900 leading-relaxed">
+                        {savedData.direccion}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Teléfono */}
+                  {savedData.telefono && (
+                    <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
+                        Teléfono
+                      </p>
+                      <p className="text-white light-mode:text-gray-900">
+                        {savedData.telefono}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -274,48 +342,87 @@ export default function Settings({
                 </div>
 
                 <div className="space-y-5">
-                  {/* Nombre del Establecimiento */}
+                  {/* Subir Logo */}
                   <div>
                     <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
-                      Nombre del Establecimiento
+                      Logo de la Empresa
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {formData.logo && (
+                        <img src={formData.logo} alt="Logo" className="h-16 w-auto rounded border-2 border-[#206DDA]" />
+                      )}
+                      <label className="flex items-center gap-2 px-4 py-3 bg-[#206DDA] hover:bg-blue-600 text-white rounded-lg font-semibold transition-all cursor-pointer">
+                        <ImageIcon className="w-4 h-4" />
+                        {uploading ? 'Subiendo...' : 'Subir Logo'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleLogoUpload}
+                          disabled={uploading}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-2">Máximo 2MB • PNG, JPG o JPEG</p>
+                  </div>
+
+                  {/* Nombre de la Empresa */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                      Nombre de la Empresa
                     </label>
                     <input
                       type="text"
-                      name="nombreEstablecimiento"
-                      value={formData.nombreEstablecimiento}
+                      name="nombre"
+                      value={formData.nombre || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none focus:ring-2 focus:ring-[#206DDA]/30 transition-all"
-                      placeholder="Ej: Tienda Principal"
+                      placeholder="Ej: ROAL BURGER"
                     />
                   </div>
 
-                  {/* Nombre del Responsable */}
+                  {/* NIT / RFC */}
                   <div>
                     <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
-                      Nombre del Responsable
+                      NIT / Identificación Fiscal
                     </label>
                     <input
                       type="text"
-                      name="nombreResponsable"
-                      value={formData.nombreResponsable}
+                      name="rfc"
+                      value={formData.rfc || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none focus:ring-2 focus:ring-[#206DDA]/30 transition-all"
-                      placeholder="Ej: Juan Pérez"
+                      placeholder="Ej: 12.345.678-9"
                     />
                   </div>
 
-                  {/* Ubicación / Sucursal */}
+                  {/* Dirección */}
                   <div>
                     <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
-                      Ubicación / Sucursal
+                      Dirección
                     </label>
                     <textarea
-                      name="ubicacion"
-                      value={formData.ubicacion}
+                      name="direccion"
+                      value={formData.direccion || ''}
                       onChange={handleInputChange}
-                      rows="3"
+                      rows="2"
                       className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none focus:ring-2 focus:ring-[#206DDA]/30 transition-all resize-none"
                       placeholder="Ej: Calle Principal 123, Ciudad"
+                    />
+                  </div>
+
+                  {/* Teléfono */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                      Teléfono
+                    </label>
+                    <input
+                      type="tel"
+                      name="telefono"
+                      value={formData.telefono || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none focus:ring-2 focus:ring-[#206DDA]/30 transition-all"
+                      placeholder="Ej: +56 9 1234 5678"
                     />
                   </div>
 

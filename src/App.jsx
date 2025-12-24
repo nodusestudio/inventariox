@@ -11,6 +11,7 @@ import Orders from './pages/Orders';
 import Settings from './pages/Settings';
 import DatabasePage from './pages/Database';
 import Reports from './pages/Reports';
+import Mermas from './pages/Mermas';
 import Toast from './components/Toast';
 import { getProducts, getStock, getProviders, getOrders, getMovements, getCompanyData } from './services/firebaseService';
 
@@ -162,6 +163,7 @@ export default function App() {
       <Orders
         language={language}
         user={user}
+        companyData={companyData}
         onShowToast={showToast}
       />
     ),
@@ -197,6 +199,12 @@ export default function App() {
         providersData={providersData}
         productsData={productsData}
         companyData={companyData}
+        user={user}
+      />
+    ),
+    mermas: (
+      <Mermas
+        language={language}
         user={user}
       />
     ),

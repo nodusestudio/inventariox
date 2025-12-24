@@ -1,15 +1,31 @@
-import { useState, useMemo } from 'react';
-import { FileDown, Calendar, DollarSign, Users, Package, Trophy } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { FileDown, Calendar, DollarSign, Users, Package, Trophy, AlertTriangle } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getMermas } from '../services/firebaseService';
 
 // CLP formatter without decimals
 const formatCLP = (value) => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(value || 0);
 
-export default function Reports({ ordersData = [], providersData = [], productsData = [], companyData = { nombreEmpresa: 'ROAL BURGER' }, language = 'es' }) {
+export default function Reports({ ordersData = [], providersData = [], productsData = [], companyData = { nombreEmpresa: 'ROAL BURGER' }, language = 'es', user }) {
   const today = new Date();
   const [month, setMonth] = useState(String(today.getMonth() + 1).padStart(2, '0'));
   const [year, setYear] = useState(String(today.getFullYear()));
+  const [mermasData, setMermasData] = useState([]);
+
+  // Load mermas from Firebase
+  useEffect(() => {
+    if (!user) return;
+    const loadMermas = async () => {
+      try {
+        const data = await getMermas(user.uid);
+        setMermasData(data || []);
+      } catch (error) {
+        console.error('Error loading mermas:', error);
+      }
+    };
+    loadMermas();
+  }, [user]);
 
   // Filter orders by month/year and estado Recibido
   const filteredOrders = useMemo(() => {
@@ -96,11 +112,26 @@ export default function Reports({ ordersData = [], providersData = [], productsD
       .slice(0, 10);
   }, [filteredOrders]);
 
+  // Filter mermas by month/year
+  const filteredMermas = useMemo(() => {
+    return (mermasData || []).filter(m => {
+      if (!m || !m.fecha) return false;
+      const d = new Date(m.fecha + 'T00:00:00');
+      return (String(d.getFullYear()) === year && String(d.getMonth() + 1).padStart(2, '0') === month);
+    });
+  }, [mermasData, month, year]);
+
+  // Total value of mermas
+  const totalMermas = useMemo(() => {
+    return filteredMermas.reduce((sum, m) => sum + (m.valorTotal || 0), 0);
+  }, [filteredMermas]);
+
   // PDF generation
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const genDate = new Date();
-    const title = 'REPORTE MENSUAL DE INVENTARIO - ROAL BURGER';
+    const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'ROAL BURGER';
+    const title = `REPORTE MENSUAL DE INVENTARIO - ${companyName}`;
     const period = `Periodo: ${month}/${year}`;
     const genText = `Generado: ${genDate.toLocaleDateString('es-CL')} ${genDate.toLocaleTimeString('es-CL')}`;
 
@@ -114,16 +145,35 @@ export default function Reports({ ordersData = [], providersData = [], productsD
     doc.text(period, 12, 26);
     doc.text(genText, 12, 32);
 
+    // Optional logo
+    if (companyData?.logo) {
+      try {
+        const resp = await fetch(companyData.logo);
+        const blob = await resp.blob();
+        const reader = new FileReader();
+        const dataUrl = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        // Try PNG first; jsPDF auto-detects type from dataURL
+        doc.addImage(dataUrl, 'PNG', 12, 10, 20, 20);
+      } catch (e) {
+        console.warn('Logo no disponible para PDF:', e);
+      }
+    }
+
     // Summary
     doc.setFontSize(12);
     doc.text(`Total Global: $${formatCLP(globalTotal)}`, 12, 42);
     doc.text(`Ahorro Sugerido: $${formatCLP(suggestedSavings)}`, 12, 48);
+    doc.text(`Mermas del Mes: $${formatCLP(totalMermas)}`, 12, 54);
     if (topProvider) {
-      doc.text(`Proveedor Top: ${topProvider.nombre} ($${formatCLP(topProvider.valor)})`, 12, 54);
+      doc.text(`Proveedor Top: ${topProvider.nombre} ($${formatCLP(topProvider.valor)})`, 12, 60);
     }
 
     // Styled tables with jspdf-autotable
-    let y = 62;
+    let y = 68;
     autoTable(doc, {
       startY: y,
       head: [["Resumen", "Monto"]],
@@ -131,6 +181,7 @@ export default function Reports({ ordersData = [], providersData = [], productsD
         ["Total Global", `$${formatCLP(globalTotal)}`],
         ["Ahorro Sugerido", `$${formatCLP(suggestedSavings)}`],
         ["Ahorro Realizado", `$${formatCLP(ahorroRealizado)}`],
+        ["Mermas del Mes", `$${formatCLP(totalMermas)}`],
         ["Proveedor Top", topProvider ? `${topProvider.nombre} ($${formatCLP(topProvider.valor)})` : '—']
       ],
       theme: 'grid',
@@ -163,6 +214,25 @@ export default function Reports({ ordersData = [], providersData = [], productsD
       headStyles: { fillColor: [32,109,218], textColor: 255 },
       alternateRowStyles: { fillColor: [31,41,55] },
     });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // Mermas del Mes table
+    if (filteredMermas.length > 0) {
+      autoTable(doc, {
+        startY: y,
+        head: [["Producto", "Cantidad", "Motivo", "Valor"]],
+        body: filteredMermas.map(m => [
+          m.productoNombre || 'SIN NOMBRE',
+          String(m.cantidad || 0),
+          m.motivo || '—',
+          `$${formatCLP(m.valorTotal || 0)}`
+        ]),
+        theme: 'grid',
+        styles: { fillColor: [17,24,39], textColor: 255, lineColor: [55,65,81], lineWidth: 0.1 },
+        headStyles: { fillColor: [32,109,218], textColor: 255 },
+        alternateRowStyles: { fillColor: [31,41,55] },
+      });
+    }
 
     doc.save(`reporte_${year}_${month}.pdf`);
   };
@@ -202,7 +272,7 @@ export default function Reports({ ordersData = [], providersData = [], productsD
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div className="bg-[#111827] border border-gray-700 rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-300">
             <DollarSign className="w-5 h-5 text-blue-400" />
@@ -216,6 +286,13 @@ export default function Reports({ ordersData = [], providersData = [], productsD
             <span className="text-sm">Ahorro Generado</span>
           </div>
           <p className="mt-2 text-2xl font-black text-green-300">${formatCLP(suggestedSavings)}</p>
+        </div>
+        <div className="bg-[#111827] border border-gray-700 rounded-lg p-4">
+          <div className="flex items-center gap-2 text-gray-300">
+            <AlertTriangle className="w-5 h-5 text-red-400" />
+            <span className="text-sm">Mermas del Mes</span>
+          </div>
+          <p className="mt-2 text-2xl font-black text-red-300">${formatCLP(totalMermas)}</p>
         </div>
         <div className="bg-[#111827] border border-gray-700 rounded-lg p-4">
           <div className="flex items-center gap-2 text-gray-300">

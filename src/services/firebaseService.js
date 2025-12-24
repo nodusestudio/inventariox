@@ -9,7 +9,8 @@ import {
   updateDoc,
   Timestamp
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db, storage } from '../config/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 // ============================================================================
 // OPERACIONES DE PRODUCTOS
@@ -312,6 +313,64 @@ export const getCompanyData = async (userId) => {
     return { nombre: '', rfc: '', direccion: '', telefono: '', email: '', logo: '' };
   }
 };
+
+// Subir logo de empresa a Storage y guardar URL en Firestore
+export const uploadCompanyLogo = async (userId, file) => {
+  try {
+    const path = `company_logos/${userId}/${Date.now()}_${file.name}`;
+    const fileRef = ref(storage, path);
+    await uploadBytes(fileRef, file);
+    const url = await getDownloadURL(fileRef);
+    await setCompanyData(userId, { logo: url });
+    return url;
+  } catch (error) {
+    console.error('Error uploading company logo:', error);
+    throw error;
+  }
+};
+
+// ============================================================================
+// OPERACIONES DE MERMAS (PÉRDIDAS)
+// ============================================================================
+
+export const addMerma = async (userId, mermaData) => {
+  try {
+    const docRef = await addDoc(collection(db, 'mermas'), {
+      ...mermaData,
+      userId,
+      createdAt: Timestamp.now()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding merma:', error);
+    throw error;
+  }
+};
+
+export const getMermas = async (userId) => {
+  try {
+    const q = query(collection(db, 'mermas'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const mermas = [];
+    querySnapshot.forEach((doc) => {
+      mermas.push({ id: doc.id, ...doc.data() });
+    });
+    return mermas;
+  } catch (error) {
+    console.error('Error getting mermas:', error);
+    return [];
+  }
+};
+
+export const deleteMerma = async (docId) => {
+  try {
+    await deleteDoc(doc(db, 'mermas', docId));
+  } catch (error) {
+    console.error('Error deleting merma:', error);
+    throw error;
+  }
+};
+
 // ============================================================================
 // ELIMINACIÓN DE DATOS DE USUARIO (para cuando se elimina la cuenta)
 // ============================================================================
@@ -373,6 +432,15 @@ export const deleteAllUserData = async (userId) => {
       totalDeleted++;
     }
     console.log(`✅ Eliminados ${companySnapshot.docs.length} registros de empresa`);
+
+    // Eliminar todas las mermas del usuario
+    const mermasQuery = query(collection(db, 'mermas'), where('userId', '==', userId));
+    const mermasSnapshot = await getDocs(mermasQuery);
+    for (const doc of mermasSnapshot.docs) {
+      await deleteDoc(doc.ref);
+      totalDeleted++;
+    }
+    console.log(`✅ Eliminados ${mermasSnapshot.docs.length} registros de mermas`);
 
     console.log(`🎉 TOTAL: ${totalDeleted} documentos eliminados de Firestore`);
     return true;
