@@ -7,7 +7,8 @@ import {
   deleteDoc,
   doc,
   updateDoc,
-  Timestamp
+  Timestamp,
+  runTransaction
 } from 'firebase/firestore';
 import { db, storage } from '../config/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -214,6 +215,45 @@ export const getOrders = async (userId) => {
   } catch (error) {
     console.error('Error getting orders:', error);
     return [];
+  }
+};
+
+// Recibir pedido con transacción (actualiza stock y estado de forma atómica)
+export const receiveOrderWithTransaction = async (orderId, orderItems) => {
+  try {
+    await runTransaction(db, async (transaction) => {
+      // Leer el pedido
+      const orderRef = doc(db, 'orders', orderId);
+      const orderDoc = await transaction.get(orderRef);
+      
+      if (!orderDoc.exists()) {
+        throw new Error('Pedido no encontrado');
+      }
+
+      // Actualizar stock de cada producto
+      for (const item of orderItems) {
+        if (!item.id || !item.cantidadPedir || item.cantidadPedir <= 0) {
+          continue;
+        }
+
+        const productRef = doc(db, 'products', item.id);
+        const productDoc = await transaction.get(productRef);
+        
+        if (productDoc.exists()) {
+          const currentStock = productDoc.data().stockActual || 0;
+          const newStock = currentStock + item.cantidadPedir;
+          transaction.update(productRef, { stockActual: newStock });
+        }
+      }
+
+      // Actualizar estado del pedido a Recibido
+      transaction.update(orderRef, { estado: 'Recibido' });
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error en transacción de recibir pedido:', error);
+    throw error;
   }
 };
 

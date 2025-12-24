@@ -9,7 +9,8 @@ import {
   deleteOrder,
   getProducts,
   getProviders,
-  updateProduct
+  updateProduct,
+  receiveOrderWithTransaction
 } from '../services/firebaseService';
 
 export default function Orders({ 
@@ -166,15 +167,36 @@ export default function Orders({
     });
   };
 
-  // Actualizar cantidad
-  const handleUpdateQty = (productId, qty) => {
-    if (qty <= 0) {
-      handleRemoveItem(productId);
-    } else {
+  // Actualizar cantidad - permite input vacío para mejor UX en móvil
+  const handleUpdateQty = (productId, value) => {
+    // Permitir vacío temporalmente para que el usuario pueda borrar
+    if (value === '' || value === null || value === undefined) {
       setFormData({
         ...formData,
         items: formData.items.map(i =>
-          i.id === productId ? { ...i, cantidadPedir: qty } : i
+          i.id === productId ? { ...i, cantidadPedir: '' } : i
+        )
+      });
+      return;
+    }
+
+    const qty = parseInt(value);
+    
+    // Si es 0 o negativo, mantener en 0 (no eliminar automáticamente)
+    if (qty <= 0 || isNaN(qty)) {
+      setFormData({
+        ...formData,
+        items: formData.items.map(i =>
+          i.id === productId ? { ...i, cantidadPedir: 0 } : i
+        )
+      });
+    } else {
+      // Limitar a 999 máximo
+      const finalQty = Math.min(qty, 999);
+      setFormData({
+        ...formData,
+        items: formData.items.map(i =>
+          i.id === productId ? { ...i, cantidadPedir: finalQty } : i
         )
       });
     }
@@ -219,7 +241,7 @@ export default function Orders({
       }
     };
 
-  // Recibir mercancía - actualizar inventario
+  // Recibir mercancía - actualizar inventario con transacción atómica
   const handleReceiveOrder = async (orderId) => {
     // Validar que el ID del pedido existe
     if (!orderId) {
@@ -243,43 +265,44 @@ export default function Orders({
     }
 
     try {
-      // Actualizar stock para cada producto en el pedido
-      for (const item of order.items) {
-        // Validar cada item
-        if (!item.id) {
-          console.warn('⚠️ Item missing ID:', item);
-          continue;
-        }
-        if (!item.cantidadPedir || item.cantidadPedir <= 0) {
-          console.warn('⚠️ Item missing or invalid quantity:', item);
-          continue;
-        }
-
-        const product = products.find(p => p.id === item.id);
-        if (product) {
-          const newStock = (product.stockActual || 0) + item.cantidadPedir;
-          // Sanitizar datos: asegurar que no sean undefined
-          const sanitizedData = {
-            stockActual: typeof newStock === 'number' && !isNaN(newStock) ? newStock : 0
-          };
-          await updateProduct(item.id, sanitizedData);
-        } else {
-          console.warn('⚠️ Product not found for item:', item);
-        }
-      }
-
-      // Actualizar estado del pedido a "Recibido" con datos sanitizados
+      // Usar transacción para asegurar que stock y estado se actualicen juntos
+      const loadingToast = toast.loading('Recibiendo mercancía...');
+      
+      await receiveOrderWithTransaction(orderId, order.items);
+      
+      // Actualizar estado local
       const updatedOrder = { ...order, estado: 'Recibido' };
-      const sanitizedOrder = {
-        estado: updatedOrder.estado || 'Recibido'
-      };
-      await updateOrder(orderId, sanitizedOrder);
       setOrders(orders.map(o => o.id === orderId ? updatedOrder : o));
+      
+      // Actualizar productos en estado local
+      const updatedProducts = [...products];
+      order.items.forEach(item => {
+        const productIndex = updatedProducts.findIndex(p => p.id === item.id);
+        if (productIndex !== -1) {
+          updatedProducts[productIndex] = {
+            ...updatedProducts[productIndex],
+            stockActual: (updatedProducts[productIndex].stockActual || 0) + item.cantidadPedir
+          };
+        }
+      });
+      setProducts(updatedProducts);
+      
       setConfirmReceive(null);
-      toast.success('✓ Mercancía recibida y stock actualizado');
+      toast.dismiss(loadingToast);
+      toast.success('✓ Mercancía recibida y stock actualizado correctamente');
     } catch (error) {
       console.error('Error receiving order:', error);
-      toast.error('❌ Error al recibir la mercancía');
+      
+      // Mensajes de error específicos
+      if (error.message.includes('no encontrado')) {
+        toast.error('❌ El pedido no existe en la base de datos');
+      } else if (error.message.includes('permisos')) {
+        toast.error('❌ No tienes permisos para realizar esta operación');
+      } else if (error.message.includes('conexión') || error.message.includes('network')) {
+        toast.error('❌ Error de conexión. Verifica tu internet');
+      } else {
+        toast.error(`❌ Error al recibir mercancía: ${error.message || 'Intenta de nuevo'}`);
+      }
     }
   };
 
@@ -589,15 +612,23 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                             </p>
                           </div>
 
-                          {/* Cantidad a Pedir */}
+                          {/* Cantidad a Pedir - Optimizado para móvil */}
                           <div className="w-24">
                             <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Pedir:</label>
                             <input
-                              type="number"
-                              min="1"
-                              value={item.cantidadPedir}
-                              onChange={(e) => handleUpdateQty(item.id, parseInt(e.target.value) || 1)}
-                              className="w-full px-2 py-1 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs font-bold focus:outline-none focus:border-[#206DDA]"
+                              type="tel"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              value={item.cantidadPedir === '' ? '' : item.cantidadPedir}
+                              onChange={(e) => handleUpdateQty(item.id, e.target.value)}
+                              onBlur={(e) => {
+                                // Si está vacío al perder foco, poner 1 por defecto
+                                if (e.target.value === '' || e.target.value === '0') {
+                                  handleUpdateQty(item.id, 1);
+                                }
+                              }}
+                              placeholder="1"
+                              className="w-full px-2 py-2 bg-[#1f2937] light-mode:bg-white border-2 border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-base font-bold focus:outline-none focus:border-[#206DDA] focus:ring-2 focus:ring-[#206DDA]/50"
                             />
                           </div>
                         </div>
@@ -635,12 +666,12 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                 </div>
               )}
 
-              {/* Botones de acción */}
-              <div className="flex gap-4 pt-4">
+              {/* Botones de acción - Responsivos y táctiles */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <button
                   onClick={handleCreateOrder}
                   disabled={!formData.proveedor || formData.items.length === 0}
-                  className="flex-1 px-6 py-3 bg-[#206DDA] hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all shadow-lg hover:shadow-xl"
+                  className="w-full sm:flex-1 px-6 py-4 sm:py-3 bg-[#206DDA] hover:bg-blue-600 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all shadow-lg hover:shadow-xl active:scale-95 text-base sm:text-sm"
                 >
                   ✓ Crear Pedido
                 </button>
@@ -649,7 +680,7 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                     setIsAddingPedido(false);
                     setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', items: [] });
                   }}
-                  className="flex-1 px-6 py-3 bg-gray-700 light-mode:bg-gray-300 hover:bg-gray-600 light-mode:hover:bg-gray-400 text-white light-mode:text-gray-900 font-bold rounded-lg transition-all"
+                  className="w-full sm:flex-1 px-6 py-4 sm:py-3 bg-gray-700 light-mode:bg-gray-300 hover:bg-gray-600 light-mode:hover:bg-gray-400 text-white light-mode:text-gray-900 font-bold rounded-lg transition-all active:scale-95 text-base sm:text-sm"
                 >
                   Cancelar
                 </button>
@@ -682,10 +713,10 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                       </div>
                       <button
                         onClick={() => setConfirmDelete(order.id)}
-                        className="p-1.5 hover:bg-red-500/20 light-mode:hover:bg-red-100 rounded-lg transition-colors flex-shrink-0 relative z-10"
+                        className="p-2 hover:bg-red-500/20 light-mode:hover:bg-red-100 rounded-lg transition-colors flex-shrink-0 relative z-10 active:scale-95"
                         title="Eliminar pedido"
                       >
-                        <Trash2 className="w-4 h-4 text-red-400 light-mode:text-red-600" />
+                        <Trash2 className="w-5 h-5 text-red-400 light-mode:text-red-600" />
                       </button>
                     </div>
                     <div className="flex flex-col gap-1">
@@ -740,15 +771,15 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                   </div>
 
                   {/* Botones de acción - Fila dedicada */}
-                  <div className="pt-4 border-t border-gray-600 light-mode:border-gray-300 space-y-2">
+                  <div className="pt-4 border-t border-gray-600 light-mode:border-gray-300 space-y-3">
                     {order.estado !== 'Recibido' && (
                       <button
                         onClick={() => setConfirmReceive(order.id)}
-                        className="w-full flex items-center justify-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-3 py-3 rounded-lg font-semibold transition-all text-sm"
+                        className="w-full flex items-center justify-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-4 py-4 rounded-lg font-bold transition-all text-base shadow-lg hover:shadow-xl active:scale-95"
                         title="Marcar como recibido"
                       >
-                        <Check className="w-4 h-4" />
-                        Recibir
+                        <Check className="w-5 h-5" />
+                        Recibir Mercancía
                       </button>
                     )}
                     <button
@@ -764,10 +795,10 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                           copyToClipboard(order);
                         }
                       }}
-                      className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-3 rounded-lg font-bold transition-all text-base active:scale-95"
+                      className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-4 rounded-lg font-bold transition-all text-base shadow-lg hover:shadow-xl active:scale-95"
                       title="Enviar por WhatsApp"
                     >
-                      <MessageCircle className="w-4 h-4" />
+                      <MessageCircle className="w-5 h-5" />
                       WhatsApp
                     </button>
                   </div>
