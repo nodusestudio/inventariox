@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { FileDown, Calendar, DollarSign, Users, Package, Trophy } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // CLP formatter without decimals
 const formatCLP = (value) => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(value || 0);
@@ -46,6 +47,22 @@ export default function Reports({ ordersData = [], providersData = [], productsD
     }, 0);
   }, [filteredOrders]);
 
+  // Ahorro Realizado: diferencia positiva entre Stock Actual y Stock Objetivo multiplicada por costo unitario
+  // Fórmula por item: max(stockEnMano - stockObjetivo, 0) * costo
+  const ahorroRealizado = useMemo(() => {
+    return filteredOrders.reduce((sum, o) => {
+      const items = o.items || [];
+      const orderReal = items.reduce((acc, i) => {
+        const stockActual = (i.stockEnMano ?? 0);
+        const objetivo = (i.stockObjetivo ?? 0);
+        const costo = (i.costo ?? 0);
+        const diff = Math.max(0, stockActual - objetivo);
+        return acc + (diff * costo);
+      }, 0);
+      return sum + orderReal;
+    }, 0);
+  }, [filteredOrders]);
+
   // Total by provider
   const byProvider = useMemo(() => {
     const acc = {};
@@ -83,13 +100,16 @@ export default function Reports({ ordersData = [], providersData = [], productsD
   const handleDownloadPDF = () => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const genDate = new Date();
-    const title = `${companyData?.nombreEmpresa || 'ROAL BURGER'} - Reporte de Gastos`;
+    const title = 'REPORTE MENSUAL DE INVENTARIO - ROAL BURGER';
     const period = `Periodo: ${month}/${year}`;
     const genText = `Generado: ${genDate.toLocaleDateString('es-CL')} ${genDate.toLocaleTimeString('es-CL')}`;
 
     // Header
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
-    doc.text(title, 12, 18);
+    doc.text(title, pageWidth / 2, 16, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     doc.text(period, 12, 26);
     doc.text(genText, 12, 32);
@@ -102,44 +122,46 @@ export default function Reports({ ordersData = [], providersData = [], productsD
       doc.text(`Proveedor Top: ${topProvider.nombre} ($${formatCLP(topProvider.valor)})`, 12, 54);
     }
 
-    // Savings bar chart (simple)
-    const chartX = 12;
+    // Styled tables with jspdf-autotable
     let y = 62;
-    const chartW = 180;
-    const maxVal = Math.max(globalTotal, suggestedSavings) || 1;
-    const spendW = Math.max(10, Math.round((globalTotal / maxVal) * chartW));
-    const saveW = Math.max(10, Math.round((suggestedSavings / maxVal) * chartW));
-    doc.setDrawColor(0);
-    doc.setFillColor(52, 152, 219); // blue
-    doc.rect(chartX, y, spendW, 6, 'F');
-    doc.text('Gasto', chartX + spendW + 2, y + 5);
-    y += 10;
-    doc.setFillColor(46, 204, 113); // green
-    doc.rect(chartX, y, saveW, 6, 'F');
-    doc.text('Ahorro', chartX + saveW + 2, y + 5);
-
-    // By provider
-    y += 14;
-    doc.setFontSize(12);
-    doc.text('Por Proveedor:', 12, y);
-    y += 6;
-    doc.setFontSize(10);
-    byProvider.forEach(p => {
-      if (y > 270) { doc.addPage(); y = 12; }
-      doc.text(`${p.nombre}: $${formatCLP(p.valor)}`, 14, y);
-      y += 5;
+    autoTable(doc, {
+      startY: y,
+      head: [["Resumen", "Monto"]],
+      body: [
+        ["Total Global", `$${formatCLP(globalTotal)}`],
+        ["Ahorro Sugerido", `$${formatCLP(suggestedSavings)}`],
+        ["Ahorro Realizado", `$${formatCLP(ahorroRealizado)}`],
+        ["Proveedor Top", topProvider ? `${topProvider.nombre} ($${formatCLP(topProvider.valor)})` : '—']
+      ],
+      theme: 'grid',
+      styles: { fillColor: [17,24,39], textColor: 255, lineColor: [55,65,81], lineWidth: 0.1 },
+      headStyles: { fillColor: [32,109,218], textColor: 255 },
+      alternateRowStyles: { fillColor: [31,41,55] },
     });
+    y = doc.lastAutoTable.finalY + 8;
 
-    // Product ranking
-    y += 4;
-    doc.setFontSize(12);
-    doc.text('Top Productos por Inversión:', 12, y);
-    y += 6;
-    doc.setFontSize(10);
-    productRanking.forEach((r, idx) => {
-      if (y > 270) { doc.addPage(); y = 12; }
-      doc.text(`#${idx + 1} ${r.nombre}: $${formatCLP(r.valor)}`, 14, y);
-      y += 5;
+    // Gastos por Proveedor table
+    autoTable(doc, {
+      startY: y,
+      head: [["Proveedor", "Gasto"]],
+      body: byProvider.map(p => [p.nombre, `$${formatCLP(p.valor)}`]),
+      theme: 'grid',
+      styles: { fillColor: [17,24,39], textColor: 255, lineColor: [55,65,81], lineWidth: 0.1 },
+      headStyles: { fillColor: [32,109,218], textColor: 255 },
+      alternateRowStyles: { fillColor: [31,41,55] },
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // Top 5 Productos de Mayor Inversión
+    const top5 = productRanking.slice(0, 5);
+    autoTable(doc, {
+      startY: y,
+      head: [["#", "Producto", "Inversión"]],
+      body: top5.map((r, idx) => [String(idx + 1), r.nombre, `$${formatCLP(r.valor)}`]),
+      theme: 'grid',
+      styles: { fillColor: [17,24,39], textColor: 255, lineColor: [55,65,81], lineWidth: 0.1 },
+      headStyles: { fillColor: [32,109,218], textColor: 255 },
+      alternateRowStyles: { fillColor: [31,41,55] },
     });
 
     doc.save(`reporte_${year}_${month}.pdf`);
