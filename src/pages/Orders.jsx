@@ -1,6 +1,6 @@
 import { Search, Plus, X, Trash2, Check, AlertCircle, MessageCircle } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
-import Toast from '../components/Toast';
+import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import {
   getOrders,
@@ -15,8 +15,7 @@ import {
 export default function Orders({ 
   language = 'es', 
   user,
-  companyData = {},
-  onShowToast = () => {}
+  companyData = {}
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [orders, setOrders] = useState([]);
@@ -26,19 +25,12 @@ export default function Orders({
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmReceive, setConfirmReceive] = useState(null);
   const [isAddingPedido, setIsAddingPedido] = useState(false);
-  const [toast, setToast] = useState(null);
   const [formData, setFormData] = useState({
     proveedor: '',
     fechaEntrega: '',
     horaEntrega: '',
     items: []
   });
-
-  // Mostrar notificación Toast
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    onShowToast?.(message, type);
-  };
 
   // Cargar datos al montar el componente
   useEffect(() => {
@@ -57,7 +49,7 @@ export default function Orders({
         setListaProveedores(providersData);
       } catch (error) {
         console.error('Error loading data:', error);
-        showToast('❌ Error al cargar los datos', 'error');
+        toast.error('❌ Error al cargar los datos');
       } finally {
         setLoading(false);
       }
@@ -88,11 +80,11 @@ export default function Orders({
   // Crear nuevo pedido
   const handleCreateOrder = async () => {
     if (!formData.proveedor) {
-      showToast('Selecciona un proveedor', 'error');
+      toast.error('Selecciona un proveedor');
       return;
     }
     if (formData.items.length === 0) {
-      showToast('Agrega al menos un producto', 'error');
+      toast.error('Agrega al menos un producto');
       return;
     }
 
@@ -103,7 +95,7 @@ export default function Orders({
     });
 
     if (invalidItems.length > 0) {
-      showToast('❌ Algunos productos no pertenecen al proveedor seleccionado', 'error');
+      toast.error('❌ Algunos productos no pertenecen al proveedor seleccionado');
       return;
     }
 
@@ -122,10 +114,10 @@ export default function Orders({
       setOrders([...orders, { id: orderId, ...newOrder }]);
       setIsAddingPedido(false);
       setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', items: [] });
-      showToast('✓ Pedido creado exitosamente', 'success');
+      toast.success('✓ Pedido creado exitosamente');
     } catch (error) {
       console.error('Error creating order:', error);
-      showToast('❌ Error al crear el pedido', 'error');
+      toast.error('❌ Error al crear el pedido');
     }
   };
 
@@ -219,10 +211,10 @@ export default function Orders({
         await deleteOrder(orderId);
         setOrders(orders.filter(o => o.id !== orderId));
         console.log('✅ Pedido eliminado exitosamente de Firestore y estado local');
-        showToast('Pedido eliminado exitosamente', 'success');
+        toast.success('Pedido eliminado exitosamente');
       } catch (error) {
         console.error('❌ Error al eliminar pedido:', error);
-        showToast('Error al eliminar el pedido', 'error');
+        toast.error('Error al eliminar el pedido');
         setOrders(orders);
       }
     };
@@ -232,21 +224,21 @@ export default function Orders({
     // Validar que el ID del pedido existe
     if (!orderId) {
       console.warn('⚠️ Order ID is undefined');
-      showToast('❌ Error: ID de pedido inválido', 'error');
+      toast.error('❌ Error: ID de pedido inválido');
       return;
     }
 
     const order = orders.find(o => o.id === orderId);
     if (!order) {
       console.warn('⚠️ Order not found for ID:', orderId);
-      showToast('❌ Error: Pedido no encontrado', 'error');
+      toast.error('❌ Error: Pedido no encontrado');
       return;
     }
 
     // Validar que el pedido tiene productos
     if (!order.items || !Array.isArray(order.items) || order.items.length === 0) {
       console.warn('⚠️ Order items are undefined or empty:', order);
-      showToast('❌ Error: Pedido sin productos', 'error');
+      toast.error('❌ Error: Pedido sin productos');
       return;
     }
 
@@ -284,10 +276,10 @@ export default function Orders({
       await updateOrder(orderId, sanitizedOrder);
       setOrders(orders.map(o => o.id === orderId ? updatedOrder : o));
       setConfirmReceive(null);
-      showToast('✓ Mercancía recibida y stock actualizado', 'success');
+      toast.success('✓ Mercancía recibida y stock actualizado');
     } catch (error) {
       console.error('Error receiving order:', error);
-      showToast('❌ Error al recibir la mercancía', 'error');
+      toast.error('❌ Error al recibir la mercancía');
     }
   };
 
@@ -765,10 +757,10 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                         const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'MI EMPRESA';
                         if (phone) {
                           const message = generateWhatsAppMessage(order, companyName);
-                          showToast('📱 Abriendo WhatsApp...', 'info');
+                          toast('Abriendo WhatsApp...');
                           window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${message}`, '_blank');
                         } else {
-                          showToast('📋 Mensaje copiado al portapapeles', 'info');
+                          toast('Mensaje copiado al portapapeles');
                           copyToClipboard(order);
                         }
                       }}
@@ -815,15 +807,6 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
           cancelText="Cancelar"
           isDangerous={false}
         />
-
-        {/* Toast Notification */}
-        {toast && (
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={() => setToast(null)}
-          />
-        )}
       </div>
     </div>
   );

@@ -12,7 +12,7 @@ import Settings from './pages/Settings';
 import DatabasePage from './pages/Database';
 import Reports from './pages/Reports';
 import Mermas from './pages/Mermas';
-import Toast from './components/Toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { getProducts, getStock, getProviders, getOrders, getMovements, getCompanyData } from './services/firebaseService';
 
 // ============================================================================
@@ -25,7 +25,6 @@ export default function App() {
   const [dataLoading, setDataLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [language, setLanguage] = useState('es');
-  const [toast, setToast] = useState(null);
 
   // Estados de datos - ahora se cargarán desde Firestore
   const [productsData, setProductsData] = useState([]);
@@ -80,7 +79,7 @@ export default function App() {
         setDataLoading(false);
       } catch (error) {
         console.error('Error loading data:', error);
-        showToast('❌ Error cargando datos', 'error');
+        toast.error('❌ Error cargando datos');
         setDataLoading(false);
       }
     };
@@ -94,16 +93,11 @@ export default function App() {
       await signOut(auth);
       setUser(null);
       setCurrentPage('dashboard');
-      showToast('✓ Sesión cerrada correctamente', 'success');
+      toast.success('✓ Sesión cerrada correctamente');
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
-      showToast('❌ Error al cerrar sesión', 'error');
+      toast.error('❌ Error al cerrar sesión');
     }
-  };
-
-  // Mostrar notificación
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
   };
 
   // Si está cargando la autenticación
@@ -141,7 +135,6 @@ export default function App() {
       <Stock
         user={user}
         language={language}
-        onShowToast={showToast}
         onGoToCreateProviders={() => setCurrentPage('providers')}
       />
     ),
@@ -164,7 +157,6 @@ export default function App() {
         language={language}
         user={user}
         companyData={companyData}
-        onShowToast={showToast}
       />
     ),
     settings: (
@@ -227,14 +219,8 @@ export default function App() {
         </div>
       </main>
 
-      {/* Toast */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      {/* Toaster de react-hot-toast */}
+      <Toaster position="top-right" reverseOrder={false} />
     </div>
   );
 }

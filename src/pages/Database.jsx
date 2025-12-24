@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle, Cloud, Clock, Package, Users, FileJson, ChevronDown } from 'lucide-react';
-import Toast from '../components/Toast';
+import { toast } from 'react-hot-toast';
 import { t } from '../utils/translations';
 import { deleteAllUserData } from '../services/firebaseService';
 
@@ -228,12 +228,6 @@ export default function DatabasePage({
   const [resetConfirm, setResetConfirm] = useState(0);
   const [showResetModal, setShowResetModal] = useState(false);
   const [downloadOption, setDownloadOption] = useState('completo');
-  const [toast, setToast] = useState(null);
-
-  // Mostrar notificación Toast
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-  };
 
   // Handlers de Exportación
   const handleExportProviders = () => {
@@ -294,7 +288,7 @@ export default function DatabasePage({
         stock: stockData,
         orders: ordersData,
       });
-      showToast('✓ Backup completo descargado exitosamente', 'success');
+      toast.success('✓ Backup completo descargado exitosamente');
     } else if (downloadOption === 'inventario') {
       // Solo Inventario
       exportToJSON({
@@ -304,7 +298,7 @@ export default function DatabasePage({
         stock: stockData || [],
         orders: [],
       });
-      showToast('✓ Inventario descargado exitosamente', 'success');
+      toast.success('✓ Inventario descargado exitosamente');
     } else if (downloadOption === 'proveedores') {
       // Solo Proveedores
       exportToJSON({
@@ -314,7 +308,7 @@ export default function DatabasePage({
         stock: [],
         orders: [],
       });
-      showToast('✓ Proveedores descargados exitosamente', 'success');
+      toast.success('✓ Proveedores descargados exitosamente');
     }
   };
 
@@ -352,7 +346,7 @@ export default function DatabasePage({
           }
 
           alert('✅ Datos importados correctamente. Recargando página...');
-          showToast('✓ Respaldo restaurado exitosamente', 'success');
+          toast.success('✓ Respaldo restaurado exitosamente');
           setTimeout(() => window.location.reload(), 1500);
         } else {
           throw new Error('Formato de archivo inválido');
@@ -479,7 +473,7 @@ export default function DatabasePage({
     if (resetConfirm === 2) {
       try {
         // Mostrar notificación de progreso
-        showToast('🗑️ Limpiando base de datos...', 'info');
+        toast.loading('Limpiando base de datos...');
 
         // Eliminar datos en Firestore si el usuario existe
         if (user?.uid) {
@@ -506,11 +500,11 @@ export default function DatabasePage({
         console.log('✅ Estado local restablecido');
 
         // Mostrar confirmación
-        showToast('✅ Sistema restablecido completamente - Sin recarga', 'success');
+        toast.success('✅ Sistema restablecido completamente - Sin recarga');
 
       } catch (error) {
         console.error('❌ Error al restablecer el sistema:', error);
-        showToast('❌ Error al limpiar la base de datos: ' + error.message, 'error');
+        toast.error('❌ Error al limpiar la base de datos: ' + error.message);
         setResetConfirm(0);
       }
     }
@@ -946,15 +940,6 @@ export default function DatabasePage({
           )}
         </div>
       </div>
-
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Edit2, X, Save, Moon, Sun, Globe, Lock, Trash2, LogOut, Image as ImageI
 import { auth } from '../config/firebase';
 import { updatePassword, deleteUser, signOut } from 'firebase/auth';
 import Swal from 'sweetalert2';
-import Toast from '../components/Toast';
+import { toast } from 'react-hot-toast';
 import { deleteAllUserData, uploadCompanyLogo } from '../services/firebaseService';
 
 export default function Settings({
@@ -39,7 +39,6 @@ export default function Settings({
   const [saveMessage, setSaveMessage] = useState('');
   const [tempTheme, setTempTheme] = useState(theme);
   const [tempLanguage, setTempLanguage] = useState(language);
-  const [toast, setToast] = useState(null);
   const [newPassword, setNewPassword] = useState('');
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -68,12 +67,12 @@ export default function Settings({
 
     const maxSize = 2 * 1024 * 1024; // 2MB
     if (file.size > maxSize) {
-      setToast({ message: '❌ El archivo debe ser menor a 2MB', type: 'error' });
+      toast.error('❌ El archivo debe ser menor a 2MB');
       return;
     }
 
     if (!file.type.startsWith('image/')) {
-      setToast({ message: '❌ Solo se aceptan imágenes', type: 'error' });
+      toast.error('❌ Solo se aceptan imágenes');
       return;
     }
 
@@ -83,10 +82,10 @@ export default function Settings({
       setFormData({ ...formData, logo: url });
       setSavedData({ ...savedData, logo: url });
       setCompanyData({ ...formData, logo: url });
-      setToast({ message: '✓ Logo cargado exitosamente', type: 'success' });
+      toast.success('✓ Logo cargado exitosamente');
     } catch (error) {
       console.error('Error uploading logo:', error);
-      setToast({ message: '❌ Error al subir el logo', type: 'error' });
+      toast.error('❌ Error al subir el logo');
     } finally {
       setUploading(false);
     }
@@ -115,28 +114,25 @@ export default function Settings({
   // Cambiar contraseña
   const handleChangePassword = async () => {
     if (!newPassword || newPassword.length < 6) {
-      setToast({ message: '❌ La contraseña debe tener al menos 6 caracteres', type: 'error' });
+      toast.error('❌ La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
     setPasswordLoading(true);
     try {
       await updatePassword(auth.currentUser, newPassword);
-      setToast({ message: '✓ Contraseña cambiada exitosamente', type: 'success' });
+      toast.success('✓ Contraseña cambiada exitosamente');
       setNewPassword('');
       setShowChangePassword(false);
     } catch (err) {
       console.error('Error changing password:', err);
       
       if (err.code === 'auth/requires-recent-login') {
-        setToast({ 
-          message: '⚠️ Sesión expirada. Cierra sesión e inicia de nuevo para cambiar tu contraseña.', 
-          type: 'error' 
-        });
+        toast.error('⚠️ Sesión expirada. Cierra sesión e inicia de nuevo para cambiar tu contraseña.');
       } else if (err.code === 'auth/weak-password') {
-        setToast({ message: '❌ La contraseña es muy débil', type: 'error' });
+        toast.error('❌ La contraseña es muy débil');
       } else {
-        setToast({ message: `❌ Error: ${err.message}`, type: 'error' });
+        toast.error(`❌ Error: ${err.message}`);
       }
     } finally {
       setPasswordLoading(false);
@@ -196,7 +192,7 @@ export default function Settings({
           await deleteUser(auth.currentUser);
 
           // Logout y redirigir
-          setToast({ message: '✓ Cuenta eliminada correctamente', type: 'success' });
+          toast.success('✓ Cuenta eliminada correctamente');
           setTimeout(() => {
             onLogout?.();
           }, 1000);
@@ -204,12 +200,9 @@ export default function Settings({
           console.error('Error deleting account:', err);
           
           if (err.code === 'auth/requires-recent-login') {
-            setToast({ 
-              message: '⚠️ Sesión expirada. Cierra sesión e inicia de nuevo para eliminar tu cuenta.', 
-              type: 'error' 
-            });
+            toast.error('⚠️ Sesión expirada. Cierra sesión e inicia de nuevo para eliminar tu cuenta.');
           } else {
-            setToast({ message: `❌ Error: ${err.message}`, type: 'error' });
+            toast.error(`❌ Error: ${err.message}`);
           }
         }
       }
@@ -218,15 +211,6 @@ export default function Settings({
 
   return (
     <div className="min-h-screen bg-[#111827] light-mode:bg-gray-50 p-4 sm:p-6 lg:p-8 transition-colors duration-300">
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
-
       <div className="max-w-4xl mx-auto">
         {/* Encabezado */}
         <div className="mb-8">

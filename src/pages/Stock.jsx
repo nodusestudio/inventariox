@@ -3,7 +3,7 @@ import { Search, Plus, Edit2, Trash2, X, AlertCircle, ChevronUp, ChevronDown } f
 import TableContainer from '../components/TableContainer';
 import ConfirmationModal from '../components/ConfirmationModal';
 import ExitReasonModal from '../components/ExitReasonModal';
-import Toast from '../components/Toast';
+import { toast } from 'react-hot-toast';
 import { t } from '../utils/translations';
 import {
   getProducts,
@@ -26,7 +26,6 @@ const formatCurrency = (value) => {
 export default function Stock({ 
   user,
   language = 'es', 
-  onShowToast = () => {},
   onGoToCreateProviders = () => {}
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -42,14 +41,7 @@ export default function Stock({
   const [adjustType, setAdjustType] = useState('');
   const [showExitReason, setShowExitReason] = useState(false);
   const [pendingProductId, setPendingProductId] = useState(null);
-  const [toast, setToast] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
-
-  // Mostrar notificación Toast
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    onShowToast?.(message, type);
-  };
 
   const loadProvidersAndProducts = async () => {
     if (!user) return;
@@ -64,7 +56,7 @@ export default function Stock({
       console.log('Proveedores cargados:', providersData);
     } catch (error) {
       console.error('Error loading data:', error);
-      showToast('❌ Error al cargar los datos', 'error');
+      toast.error('❌ Error al cargar los datos');
     } finally {
       setLoading(false);
     }
@@ -179,17 +171,17 @@ export default function Stock({
         setProducts(products.map(p => 
           p.id === editingId ? { ...p, ...productData } : p
         ));
-        showToast('✓ Producto actualizado exitosamente', 'success');
+        toast.success('✓ Producto actualizado exitosamente');
       } else {
         const newId = await addProduct(user.uid, productData);
         // Agregar al estado local
         setProducts([...products, { id: newId, ...productData }]);
-        showToast('✓ Producto creado exitosamente', 'success');
+        toast.success('✓ Producto creado exitosamente');
       }
       setShowModal(false);
     } catch (error) {
       console.error('Error saving product:', error);
-      showToast('❌ Error al guardar el producto', 'error');
+      toast.error('❌ Error al guardar el producto');
     } finally {
       setIsSaving(false);
     }
@@ -203,10 +195,10 @@ export default function Stock({
       await deleteProduct(id);
       setProducts(products.filter(p => p.id !== id));
       setConfirmDelete(null);
-      showToast('✓ Producto eliminado', 'success');
+      toast.success('✓ Producto eliminado');
     } catch (error) {
       console.error('Error deleting product:', error);
-      showToast('❌ Error al eliminar el producto', 'error');
+      toast.error('❌ Error al eliminar el producto');
     }
   };
 
@@ -258,10 +250,10 @@ export default function Stock({
 
       setConfirmAdjust(null);
       setAdjustType('');
-      showToast(`✓ Stock ${adjustType === 'entrada' ? 'ingresado' : 'reducido'} exitosamente`, 'success');
+      toast.success(`✓ Stock ${adjustType === 'entrada' ? 'ingresado' : 'reducido'} exitosamente`);
     } catch (error) {
       console.error('Error adjusting stock:', error);
-      showToast('❌ Error al ajustar el stock', 'error');
+      toast.error('❌ Error al ajustar el stock');
     }
   };
 
@@ -736,15 +728,6 @@ function QuickAdjustModal({ isOpen, type, language, onConfirm, onCancel }) {
           </div>
         </div>
       </div>
-
-      {/* Toast Notification */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
     </>
   );
 }

@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Plus, X, Trash2, AlertCircle, TrendingDown } from 'lucide-react';
 import { getMermas, addMerma, deleteMerma, getProducts, updateProduct } from '../services/firebaseService';
-import Toast from '../components/Toast';
+import { toast } from 'react-hot-toast';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 export default function Mermas({ language = 'es', user }) {
   const [mermas, setMermas] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [formData, setFormData] = useState({
@@ -44,14 +43,10 @@ export default function Mermas({ language = 'es', user }) {
       setProducts(productsData);
     } catch (error) {
       console.error('Error loading data:', error);
-      showToast('❌ Error al cargar datos', 'error');
+      toast.error('❌ Error al cargar datos');
     } finally {
       setLoading(false);
     }
-  };
-
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
   };
 
   const handleProductChange = (e) => {
@@ -69,18 +64,18 @@ export default function Mermas({ language = 'es', user }) {
 
   const handleAddMerma = async () => {
     if (!formData.productoId || !formData.cantidad || !formData.motivo) {
-      showToast('❌ Completa todos los campos', 'error');
+      toast.error('❌ Completa todos los campos');
       return;
     }
 
     const product = products.find(p => p.id === formData.productoId);
     if (!product) {
-      showToast('❌ Producto no encontrado', 'error');
+      toast.error('❌ Producto no encontrado');
       return;
     }
 
     if (formData.cantidad > product.stockActual) {
-      showToast('❌ La cantidad de merma excede el stock actual', 'error');
+      toast.error('❌ La cantidad de merma excede el stock actual');
       return;
     }
 
@@ -117,10 +112,10 @@ export default function Mermas({ language = 'es', user }) {
         costo: 0
       });
       setIsAdding(false);
-      showToast('✓ Merma registrada y stock actualizado', 'success');
+      toast.success('✓ Merma registrada y stock actualizado');
     } catch (error) {
       console.error('Error adding merma:', error);
-      showToast('❌ Error al registrar merma', 'error');
+      toast.error('❌ Error al registrar merma');
     }
   };
 
@@ -128,10 +123,10 @@ export default function Mermas({ language = 'es', user }) {
     try {
       await deleteMerma(mermaId);
       setMermas(mermas.filter(m => m.id !== mermaId));
-      showToast('✓ Merma eliminada', 'success');
+      toast.success('✓ Merma eliminada');
     } catch (error) {
       console.error('Error deleting merma:', error);
-      showToast('❌ Error al eliminar merma', 'error');
+      toast.error('❌ Error al eliminar merma');
     } finally {
       setConfirmDelete(null);
     }
@@ -376,15 +371,6 @@ export default function Mermas({ language = 'es', user }) {
           cancelText="Cancelar"
           isDangerous={true}
         />
-
-        {/* Toast */}
-        {toast && (
-          <Toast
-            message={toast.message}
-            type={toast.type}
-            onClose={() => setToast(null)}
-          />
-        )}
       </div>
     </div>
   );
