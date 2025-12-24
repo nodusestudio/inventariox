@@ -4,12 +4,20 @@ import MetricCard from '../components/MetricCard';
 import TableContainer from '../components/TableContainer';
 import { t } from '../utils/translations';
 
+// Formato moneda local sin decimales
+const formatCLP = (value) => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(value || 0);
+
 export default function Dashboard({ inventoryData, productsData = [], stockData = [], language = 'es', isLoading = false }) {
   const [alertProducts, setAlertProducts] = useState([]);
+  const [selectedProvider, setSelectedProvider] = useState('');
 
   // Función para calcular productos en estado crítico
   const calculateAlerts = () => {
-    const data = inventoryData || productsData || [];
+    const baseData = inventoryData && inventoryData.length ? inventoryData : productsData || [];
+    const data = selectedProvider
+      ? baseData.filter(item => item && item.proveedor === selectedProvider)
+      : baseData;
+
     if (!Array.isArray(data) || data.length === 0) {
       setAlertProducts([]);
       return;
@@ -31,27 +39,50 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
   // Actualizar alertas cuando cambia inventoryData o productsData
   useEffect(() => {
     calculateAlerts();
-  }, [inventoryData, productsData]);
+  }, [inventoryData, productsData, selectedProvider]);
 
   // Calcular métricas mejoradas
-  const safeData = (inventoryData || productsData || []).filter(item => item);
-  const totalProducts = safeData.length;
-  const lowStock = safeData.filter(item => (item.stockActual || 0) < (item.stockMinimo || 0)).length;
-  
-  // Calcular valor total: Suma de (Costo Unitario * Stock Actual)
   const baseProducts = (inventoryData && inventoryData.length ? inventoryData : productsData) || [];
   const safeProducts = baseProducts.filter(item => item);
-  const totalValue = safeProducts.reduce((sum, item) => {
+  const providers = Array.from(new Set(safeProducts.map(p => p.proveedor).filter(Boolean)));
+  const filteredProducts = selectedProvider
+    ? safeProducts.filter(p => p.proveedor === selectedProvider)
+    : safeProducts;
+
+  // Calcular valor total: Suma de (Costo Unitario * Stock Actual) filtrado por proveedor
+  const totalValue = filteredProducts.reduce((sum, item) => {
     const costo = item.costo || 0;
     const stock = item.stockActual || 0;
     return sum + (costo * stock);
   }, 0);
   
   // Productos críticos: cantidad de productos por debajo del stock mínimo
-  const criticalProducts = safeProducts.filter(item => (item.stockActual || 0) < (item.stockMinimo || 0)).length;
+  const criticalProducts = filteredProducts.filter(item => (item.stockActual || 0) < (item.stockMinimo || 0)).length;
   
   // Total referencias: cantidad total de productos distintos
-  const totalReferences = safeProducts.length;
+  const totalReferences = filteredProducts.length;
+
+  // Valor por proveedor (usando productos filtrados actuales)
+  const valueByProvider = filteredProducts.reduce((acc, item) => {
+    const key = item.proveedor || 'SIN PROVEEDOR';
+    const value = (item.costo || 0) * (item.stockActual || 0);
+    acc[key] = (acc[key] || 0) + value;
+    return acc;
+  }, {});
+
+  const valueByProviderList = Object.entries(valueByProvider)
+    .map(([nombre, valor]) => ({ nombre, valor }))
+    .sort((a, b) => b.valor - a.valor);
+
+  // Ranking top 5 por inversión (Costo * Stock)
+  const productRanking = [...filteredProducts]
+    .map(p => ({
+      nombre: p.nombre || 'Sin nombre',
+      proveedor: p.proveedor || 'N/A',
+      valor: (p.costo || 0) * (p.stockActual || 0),
+    }))
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 5);
 
   const columns = [
     { key: 'nombre', label: t(language, 'nombre') },
@@ -76,10 +107,25 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
   return (
     <div className="min-h-screen bg-dark-bg light-mode:bg-gray-50 p-4 sm:p-6 transition-colors duration-300">
       <div>
-        {/* Encabezado */}
-        <div className="mb-6 sm:mb-8">
-          <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 text-white light-mode:text-gray-900">{t(language, 'panel')}</h1>
-          <p className="text-sm sm:text-base text-gray-400 light-mode:text-gray-600">{t(language, 'resumenGeneral')}</p>
+        {/* Encabezado + filtro por proveedor */}
+        <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div>
+            <h1 className="text-2xl sm:text-4xl font-bold mb-1 sm:mb-2 text-white light-mode:text-gray-900">{t(language, 'panel')}</h1>
+            <p className="text-sm sm:text-base text-gray-400 light-mode:text-gray-600">{t(language, 'resumenGeneral')}</p>
+          </div>
+          <div className="w-full sm:w-64">
+            <label className="block text-xs font-semibold text-gray-400 light-mode:text-gray-600 mb-1">Filtrar por proveedor</label>
+            <select
+              value={selectedProvider}
+              onChange={(e) => setSelectedProvider(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-800 light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-sm text-white light-mode:text-gray-900 focus:border-[#206DDA] focus:outline-none"
+            >
+              <option value="">Todos</option>
+              {providers.map((prov) => (
+                <option key={prov} value={prov}>{prov}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* ⚠️ ALERTAS DE REABASTECIMIENTO */}
@@ -138,7 +184,7 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
           <MetricCard
             title={language === 'es' ? 'Valor Total Inventario' : 'Total Inventory Value'}
-            value={`$${new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(totalValue)}`}
+            value={`$${formatCLP(totalValue)}`}
             icon={DollarSign}
             color="primary"
           />
@@ -154,6 +200,44 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
             icon={Boxes}
             color="secondary"
           />
+        </div>
+
+        {/* Valor por proveedor */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-lg sm:text-xl font-bold mb-3 text-white light-mode:text-gray-900">Valor por Proveedor</h2>
+          {valueByProviderList.length > 0 ? (
+            <div className="bg-gray-900/40 light-mode:bg-white border border-gray-700/40 light-mode:border-gray-300 rounded-lg p-4 divide-y divide-gray-800 light-mode:divide-gray-200">
+              {valueByProviderList.map((prov) => (
+                <div key={prov.nombre} className="py-2 flex items-center justify-between text-sm sm:text-base">
+                  <span className="text-gray-300 light-mode:text-gray-800 font-semibold">{prov.nombre}</span>
+                  <span className="text-white light-mode:text-gray-900 font-bold">${formatCLP(prov.valor)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-400 light-mode:text-gray-600 text-sm">Sin datos para mostrar.</p>
+          )}
+        </div>
+
+        {/* Ranking top 5 productos por inversión */}
+        <div className="mb-6 sm:mb-8">
+          <h2 className="text-lg sm:text-xl font-bold mb-3 text-white light-mode:text-gray-900">Top 5 Productos por Inversión</h2>
+          {productRanking.length > 0 ? (
+            <div className="bg-gray-900/40 light-mode:bg-white border border-gray-700/40 light-mode:border-gray-300 rounded-lg p-4 space-y-2">
+              {productRanking.map((p, idx) => (
+                <div key={`${p.nombre}-${idx}`} className="flex items-center justify-between text-sm sm:text-base">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400 light-mode:text-gray-600 text-xs sm:text-sm">#{idx + 1}</span>
+                    <span className="text-white light-mode:text-gray-900 font-semibold">{p.nombre}</span>
+                    <span className="text-gray-400 light-mode:text-gray-600 text-xs">{p.proveedor}</span>
+                  </div>
+                  <span className="text-yellow-300 light-mode:text-yellow-700 font-bold">${formatCLP(p.valor)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-gray-400 light-mode:text-gray-600 text-sm">No hay productos para mostrar.</p>
+          )}
         </div>
 
         {/* Tabla de Últimos Productos */}
