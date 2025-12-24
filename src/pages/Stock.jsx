@@ -198,7 +198,7 @@ export default function Stock({
   // Eliminar producto
   const handleDeleteProduct = async (id) => {
     try {
-      await deleteProduct(user.uid, id);
+      await deleteProduct(id);
       setProducts(products.filter(p => p.id !== id));
       setConfirmDelete(null);
       showToast('✓ Producto eliminado', 'success');

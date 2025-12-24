@@ -542,68 +542,74 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                   </label>
                   <div className="space-y-1 overflow-x-auto">
                     {formData.items.map(item => (
-                      <div key={item.id} className="flex items-center gap-2 p-2 bg-[#111827] light-mode:bg-gray-50 rounded border border-gray-600 light-mode:border-gray-300 text-xs whitespace-nowrap">
-                        {/* Nombre y Costo */}
-                        <div className="flex-1 min-w-fit">
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 p-2 bg-[#111827] light-mode:bg-gray-50 rounded border border-gray-600 light-mode:border-gray-300 text-xs whitespace-nowrap"
+                      >
+                        {/* Nombre y Costo a la izquierda */}
+                        <div className="min-w-[140px]">
                           <p className="font-bold text-white light-mode:text-gray-900 truncate">{item.nombre}</p>
                           <p className="text-xs text-gray-400 light-mode:text-gray-600">${formatCurrency(item.costo)}/u</p>
                         </div>
 
-                        {/* Stock en Mano */}
-                        <div className="w-20">
-                          <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Mano:</label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={item.stockEnMano || 0}
-                            onChange={(e) => handleUpdateStockEnMano(item.id, e.target.value)}
-                            className="w-full px-1.5 py-1 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs focus:outline-none focus:border-[#206DDA]"
-                          />
+                        {/* Bloque de datos centrado */}
+                        <div className="flex items-center gap-3 flex-1 justify-center">
+                          {/* Stock Actual */}
+                          <div className="w-24">
+                            <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Actual:</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.stockEnMano || 0}
+                              onChange={(e) => handleUpdateStockEnMano(item.id, e.target.value)}
+                              className="w-full px-2 py-1 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs focus:outline-none focus:border-[#206DDA]"
+                            />
+                          </div>
+
+                          {/* Stock Objetivo */}
+                          <div className="w-16">
+                            <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Obj:</label>
+                            <p className="w-full px-1.5 py-1 bg-[#1f2937] light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs font-bold">
+                              {item.stockObjetivo || 10}
+                            </p>
+                          </div>
+
+                          {/* Cantidad Sugerida */}
+                          <div className="w-16">
+                            <label className="text-xs text-yellow-400 light-mode:text-yellow-600 block mb-0.5 font-bold">Sug:</label>
+                            <p className="w-full px-1.5 py-1 bg-yellow-900/30 light-mode:bg-yellow-100 border border-yellow-600 light-mode:border-yellow-400 rounded text-yellow-300 light-mode:text-yellow-700 text-center text-xs font-bold">
+                              {item.cantidadSugerida || 0}
+                            </p>
+                          </div>
+
+                          {/* Cantidad a Pedir */}
+                          <div className="w-24">
+                            <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Pedir:</label>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.cantidadPedir}
+                              onChange={(e) => handleUpdateQty(item.id, parseInt(e.target.value) || 1)}
+                              className="w-full px-2 py-1 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs font-bold focus:outline-none focus:border-[#206DDA]"
+                            />
+                          </div>
                         </div>
 
-                        {/* Stock Objetivo */}
-                        <div className="w-16">
-                          <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Obj:</label>
-                          <p className="w-full px-1.5 py-1 bg-[#1f2937] light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs font-bold">
-                            {item.stockObjetivo || 10}
-                          </p>
+                        {/* Subtotal y eliminar a la derecha */}
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="w-20 text-center">
+                            <p className="text-xs text-yellow-400 font-bold">
+                              ${formatCurrency(item.costo * item.cantidadPedir)}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleRemoveItem(item.id)}
+                            className="p-1 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded transition-colors"
+                            title="Eliminar producto"
+                          >
+                            <X className="w-4 h-4 text-red-400 light-mode:text-red-600" />
+                          </button>
                         </div>
-
-                        {/* Cantidad Sugerida */}
-                        <div className="w-16">
-                          <label className="text-xs text-yellow-400 light-mode:text-yellow-600 block mb-0.5 font-bold">Sug:</label>
-                          <p className="w-full px-1.5 py-1 bg-yellow-900/30 light-mode:bg-yellow-100 border border-yellow-600 light-mode:border-yellow-400 rounded text-yellow-300 light-mode:text-yellow-700 text-center text-xs font-bold">
-                            {item.cantidadSugerida || 0}
-                          </p>
-                        </div>
-
-                        {/* Cantidad a Pedir */}
-                        <div className="w-16">
-                          <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Pedir:</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.cantidadPedir}
-                            onChange={(e) => handleUpdateQty(item.id, parseInt(e.target.value) || 1)}
-                            className="w-full px-1.5 py-1 bg-[#1f2937] light-mode:bg-white border border-gray-600 light-mode:border-gray-300 rounded text-white light-mode:text-gray-900 text-center text-xs font-bold focus:outline-none focus:border-[#206DDA]"
-                          />
-                        </div>
-
-                        {/* Subtotal */}
-                        <div className="w-16">
-                          <p className="text-xs text-yellow-400 font-bold text-center">
-                            ${formatCurrency(item.costo * item.cantidadPedir)}
-                          </p>
-                        </div>
-
-                        {/* Botón Eliminar */}
-                        <button
-                          onClick={() => handleRemoveItem(item.id)}
-                          className="p-1 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded transition-colors flex-shrink-0"
-                          title="Eliminar producto"
-                        >
-                          <X className="w-4 h-4 text-red-400 light-mode:text-red-600" />
-                        </button>
                       </div>
                     ))}
                   </div>
