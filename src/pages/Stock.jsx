@@ -197,6 +197,8 @@ export default function Stock({
 
   // Eliminar producto
   const handleDeleteProduct = async (id) => {
+    const confirmed = window.confirm('¿Eliminar este producto? Esta acción no se puede deshacer.');
+    if (!confirmed) return;
     try {
       await deleteProduct(id);
       setProducts(products.filter(p => p.id !== id));

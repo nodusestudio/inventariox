@@ -108,6 +108,8 @@ export default function Providers({ language = 'es', providersData = [], setProv
 
   // Confirmar y eliminar proveedor
   const handleDeleteProvider = async (id) => {
+    const confirmed = window.confirm('¿Eliminar este proveedor? Esta acción no se puede deshacer.');
+    if (!confirmed) return;
     try {
       await deleteProvider(id);
       const updatedProviders = providers.filter(p => p.id !== id);
