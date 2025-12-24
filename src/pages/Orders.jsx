@@ -95,6 +95,17 @@ export default function Orders({
       return;
     }
 
+    // Validar que todos los items pertenezcan al proveedor seleccionado
+    const invalidItems = formData.items.filter(item => {
+      const product = products.find(p => p.id === item.id);
+      return !product || product.proveedor !== formData.proveedor;
+    });
+
+    if (invalidItems.length > 0) {
+      showToast('❌ Algunos productos no pertenecen al proveedor seleccionado', 'error');
+      return;
+    }
+
     const newOrder = {
       proveedor: formData.proveedor,
       fecha: new Date().toISOString().split('T')[0],
@@ -466,7 +477,7 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                 </label>
                 <select
                   value={formData.proveedor}
-                  onChange={(e) => setFormData({ ...formData, proveedor: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, proveedor: e.target.value, items: [] })}
                   disabled={loading}
                   className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -514,22 +525,24 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                     Agregar Productos
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto p-3 bg-[#111827] light-mode:bg-gray-50 rounded-lg border-2 border-gray-600 light-mode:border-gray-300">
-                    {products.map(product => {
-                      const isSelected = formData.items.some(i => i.id === product.id);
-                      return (
-                        <button
-                          key={product.id}
-                          onClick={() => handleAddItem(product.id)}
-                          className={`text-left p-3 rounded-lg border-2 transition-all font-semibold text-sm ${
-                            isSelected
-                              ? 'bg-[#206DDA] border-blue-400 text-white'
-                              : 'bg-gray-700 light-mode:bg-white border-gray-500 light-mode:border-gray-300 text-gray-300 light-mode:text-gray-900 hover:border-[#206DDA]'
-                          }`}
-                        >
-                          {product.nombre}
-                        </button>
-                      );
-                    })}
+                    {products
+                      .filter(product => product.proveedor === formData.proveedor)
+                      .map(product => {
+                        const isSelected = formData.items.some(i => i.id === product.id);
+                        return (
+                          <button
+                            key={product.id}
+                            onClick={() => handleAddItem(product.id)}
+                            className={`text-left p-3 rounded-lg border-2 transition-all font-semibold text-sm ${
+                              isSelected
+                                ? 'bg-[#206DDA] border-blue-400 text-white'
+                                : 'bg-gray-700 light-mode:bg-white border-gray-500 light-mode:border-gray-300 text-gray-300 light-mode:text-gray-900 hover:border-[#206DDA]'
+                            }`}
+                          >
+                            {product.nombre}
+                          </button>
+                        );
+                      })}
                   </div>
                 </div>
               )}
