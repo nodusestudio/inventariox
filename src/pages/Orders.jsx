@@ -367,7 +367,8 @@ export default function Orders({
       let fechaFormato = 'Por confirmar';
       if (order.fechaEntrega) {
         try {
-          const [año, mes, día] = order.fechaEntrega.split('-');
+          const [
+año, mes, día] = order.fechaEntrega.split('-');
           const date = new Date(año, parseInt(mes) - 1, día);
           
           const formatter = new Intl.DateTimeFormat('es-ES', {
@@ -392,7 +393,7 @@ export default function Orders({
       // Obtener dirección de entrega
       const direccion = order.direccionEntrega || companyData?.direccion || '';
 
-      // Validar y construir lista de items
+      // 🔥 REFRESCO DE DATOS: Consultar productos actualizados para obtener unidad real
       let itemsList = '';
       if (order.items && Array.isArray(order.items) && order.items.length > 0) {
         const validItems = order.items.filter(item => {
@@ -407,8 +408,22 @@ export default function Orders({
           console.warn('⚠️ No valid items in order');
           itemsList = '- Sin productos';
         } else {
+          // 🔥 Cruce de datos con products para traer unidad actualizada
           itemsList = validItems
-            .map(item => `- ${item.nombre}: ${item.cantidadPedir} un.`)
+            .map(item => {
+              // Buscar producto actual en la colección de products por nombre o ID
+              const currentProduct = products.find(p => 
+                p.id === item.id || p.nombre === item.nombre
+              );
+              
+              // Usar unidad actualizada del inventario, no la guardada en el pedido
+              const unidadActualizada = currentProduct?.unidad || item.unidad || 'unidades';
+              const cantidad = item.cantidadPedir;
+              const nombre = item.nombre;
+              
+              // 🔥 FORMATEO DINÁMICO: [Cantidad] [Unidad] de [Producto]
+              return `- ${cantidad} ${unidadActualizada.toLowerCase()} de ${nombre}`;
+            })
             .join('%0A');
         }
       } else {
@@ -826,11 +841,19 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`;
                           Items ({order.items.length})
                         </p>
                         <ul className="text-sm text-gray-300 light-mode:text-gray-700 space-y-1">
-                          {order.items.map((item, idx) => (
-                            <li key={idx} className="truncate">
-                              • {item.nombre} ×{item.cantidadPedir}
-                            </li>
-                          ))}
+                          {order.items.map((item, idx) => {
+                            // 🔥 ACTUALIZACIÓN DE PEDIDOS PENDIENTES: Consultar unidad actual del inventario
+                            const currentProduct = products.find(p => 
+                              p.id === item.id || p.nombre === item.nombre
+                            );
+                            const unidadActualizada = currentProduct?.unidad || item.unidad || 'unidades';
+                            
+                            return (
+                              <li key={idx} className="truncate">
+                                • {item.cantidadPedir} {unidadActualizada.toLowerCase()} de {item.nombre}
+                              </li>
+                            );
+                          })}
                         </ul>
                       </div>
                     )}
