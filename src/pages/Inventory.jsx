@@ -99,7 +99,7 @@ export default function Inventory({
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('ROAL BURGER - CONTROL DE MOVIMIENTO', pageWidth / 2, 20, { align: 'center' });
+    doc.text('ROAL BURGER - REPORTE DE INVENTARIO', pageWidth / 2, 20, { align: 'center' });
     
     // Información general
     doc.setFontSize(10);
@@ -125,7 +125,7 @@ export default function Inventory({
     doc.text(`Total Productos: ${data.length}`, pageWidth - 14, 52, { align: 'right' });
     doc.text(`Productos con Salidas: ${productosSalidas}`, pageWidth - 14, 59, { align: 'right' });
     doc.setTextColor(totalSalidas > 0 ? [220, 53, 69] : [34, 139, 34]);
-    doc.text(`Total Unidades Salientes: ${totalSalidas}`, pageWidth - 14, 66, { align: 'right' });
+    doc.text(`Total Unidades Salientes (Ventas/Consumo): ${totalSalidas}`, pageWidth - 14, 66, { align: 'right' });
     doc.setTextColor(0, 0, 0);
     
     // Separador
@@ -145,7 +145,7 @@ export default function Inventory({
     
     doc.autoTable({
       startY: 75,
-      head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Salidas/Ventas', 'Observaciones']],
+      head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Unidades Salientes', 'Observaciones']],
       body: tableData,
       theme: 'striped',
       headStyles: { 
@@ -196,7 +196,7 @@ export default function Inventory({
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text(`Total Unidades Salientes: ${totalUnidadesSalientes}`, 14, finalY + 8);
+      doc.text(`Total Unidades Salientes (Ventas/Consumo): ${totalUnidadesSalientes}`, 14, finalY + 8);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -233,7 +233,7 @@ export default function Inventory({
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(34, 139, 34);
-      doc.text('Total Unidades Salientes: 0', 14, finalY + 8);
+      doc.text('Total Unidades Salientes (Ventas/Consumo): 0', 14, finalY + 8);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -357,20 +357,48 @@ export default function Inventory({
     setIsProcessing(true);
     
     try {
-      // Validación de campos críticos
+      // Validación CRÍTICA 1: Verificar que Responsable está definido y no vacío
       if (!selectedResponsible || selectedResponsible.trim() === '') {
+        console.error('Error: Responsable no definido o vacío');
         throw new Error('CAMPO_RESPONSABLE');
       }
       
+      // Validación CRÍTICA 2: Verificar que Sede está definida y no vacía
       if (!selectedSede || selectedSede.trim() === '') {
+        console.error('Error: Sede no definida o vacía');
         throw new Error('CAMPO_SEDE');
       }
       
+      // Validación CRÍTICA 3: Verificar que Proveedor está definido y no vacío
       if (!selectedProvider || selectedProvider.trim() === '') {
+        console.error('Error: Proveedor no definido o vacío');
         throw new Error('CAMPO_PROVEEDOR');
       }
+      
+      // Validación CRÍTICA 4: Verificar que el array de productos existe y tiene datos
+      if (!inventoryData || !Array.isArray(inventoryData) || inventoryData.length === 0) {
+        console.error('Error: Array de productos no válido:', inventoryData);
+        throw new Error('PRODUCTOS_INVALIDOS');
+      }
+      
+      // Validación CRÍTICA 5: Verificar integridad de cada producto
+      const invalidProducts = inventoryData.filter(item => 
+        !item.id || !item.nombre || item.stockTeorico === undefined || 
+        item.stockFisico === '' || item.stockFisico === null || item.stockFisico === undefined
+      );
+      
+      if (invalidProducts.length > 0) {
+        console.error('Error: Productos con datos incompletos:', invalidProducts);
+        throw new Error('DATOS_PRODUCTOS_INCOMPLETOS');
+      }
 
-      // Preparar datos para Firebase
+      // Preparar datos para Firebase con validación completa
+      console.log('Preparando datos para Firebase...');
+      console.log('Responsable:', selectedResponsible);
+      console.log('Sede:', selectedSede);
+      console.log('Proveedor:', selectedProvider);
+      console.log('Cantidad de productos:', inventoryData.length);
+      
       const logData = {
         proveedor: selectedProvider,
         responsable: selectedResponsible,
@@ -390,12 +418,16 @@ export default function Inventory({
         ),
         totalProductos: inventoryData.length
       };
+      
+      console.log('Datos preparados correctamente:', logData);
 
       // PASO 1: Guardar en Firebase primero
+      console.log('Guardando en Firebase...');
       try {
         await addInventoryLog(userId, logData);
+        console.log('✓ Guardado exitoso en Firebase');
       } catch (firebaseError) {
-        console.error('Error Firebase:', firebaseError);
+        console.error('❌ Error Firebase:', firebaseError);
         throw new Error('CONEXION_FIREBASE');
       }
 
@@ -458,6 +490,14 @@ export default function Inventory({
         errorMsg = language === 'es'
           ? '❌ ERROR DE CONEXIÓN: No se pudo conectar con la base de datos.\nVerifica tu conexión a internet e inténtalo nuevamente.'
           : '❌ CONNECTION ERROR: Could not connect to database.\nCheck your internet connection and try again.';
+      } else if (error.message === 'PRODUCTOS_INVALIDOS') {
+        errorMsg = language === 'es'
+          ? '❌ ERROR: El array de productos está vacío o no es válido.\nSelecciona un proveedor y carga los productos antes de guardar.'
+          : '❌ ERROR: Product array is empty or invalid.\nSelect a provider and load products before saving.';
+      } else if (error.message === 'DATOS_PRODUCTOS_INCOMPLETOS') {
+        errorMsg = language === 'es'
+          ? '❌ ERROR: Algunos productos tienen datos incompletos.\nVerifica que todos los productos tengan Stock Físico ingresado.'
+          : '❌ ERROR: Some products have incomplete data.\nVerify that all products have Physical Stock entered.';
       } else {
         errorMsg = language === 'es'
           ? `❌ Error inesperado al guardar el inventario.\nDetalles: ${error.message}\n\nContacta al administrador si el problema persiste.`
@@ -635,7 +675,7 @@ export default function Inventory({
                     {language === 'es' ? 'Stock Físico' : 'Physical Stock'}
                   </th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300 light-mode:text-gray-700">
-                    {language === 'es' ? 'Salidas/Ventas' : 'Sales/Exits'}
+                    {language === 'es' ? 'Unidades Salientes' : 'Exit Units'}
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-300 light-mode:text-gray-700">
                     {language === 'es' ? 'Observaciones' : 'Notes'}
@@ -715,8 +755,8 @@ export default function Inventory({
         isOpen={showConfirmClose}
         title={language === 'es' ? '📋 Generar Vista Previa' : '📋 Generate Preview'}
         message={language === 'es' 
-          ? `Se generará una vista previa del reporte con los siguientes datos:\n\n📍 Sede: ${selectedSede}\n👤 Responsable: ${selectedResponsible}\n📦 Proveedor: ${selectedProvider}\n\n📊 Salidas/Ventas: ${salidasCount} productos\n📉 Total Unidades Salientes: ${totalUnidadesSalientes}\n\nPodrás validar la información antes de confirmar el cierre definitivo.` 
-          : `A preview of the report will be generated with the following data:\n\n📍 Location: ${selectedSede}\n👤 Responsible: ${selectedResponsible}\n📦 Provider: ${selectedProvider}\n\n📊 Sales/Exits: ${salidasCount} products\n📉 Total Exit Units: ${totalUnidadesSalientes}\n\nYou can validate the information before confirming the final closure.`}
+          ? `Se generará una vista previa del reporte de inventario:\n\n📍 Sede: ${selectedSede}\n👤 Responsable: ${selectedResponsible}\n📦 Proveedor: ${selectedProvider}\n\n📊 Productos con Salidas: ${salidasCount}\n📉 Total Unidades Salientes (Ventas/Consumo): ${totalUnidadesSalientes}\n\nPodrás validar la información antes de confirmar el cierre definitivo.` 
+          : `An inventory report preview will be generated:\n\n📍 Location: ${selectedSede}\n👤 Responsible: ${selectedResponsible}\n📦 Provider: ${selectedProvider}\n\n📊 Products with Exits: ${salidasCount}\n📉 Total Exit Units (Sales/Consumption): ${totalUnidadesSalientes}\n\nYou can validate the information before confirming the final closure.`}
         onConfirm={handleCloseInventory}
         onCancel={() => setShowConfirmClose(false)}
         confirmText={language === 'es' ? '✓ Generar Vista Previa' : '✓ Generate Preview'}
@@ -761,7 +801,7 @@ export default function Inventory({
                   <p className="text-red-400 light-mode:text-red-600 font-bold text-2xl">{salidasCount}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Total Unidades Salientes</p>
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Total Unidades Salientes (Ventas/Consumo)</p>
                   <p className="text-red-400 light-mode:text-red-600 font-bold text-2xl">{totalUnidadesSalientes}</p>
                 </div>
               </div>
