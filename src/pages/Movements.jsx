@@ -1,13 +1,18 @@
 import { useState, useEffect } from 'react';
-import { ArrowUp, ArrowDown, Calendar, Package, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import { getMovements, subscribeToMovements } from '../services/firebaseService';
+import { ArrowUp, ArrowDown, Calendar, Package, TrendingUp, TrendingDown, DollarSign, FileText, Download, History } from 'lucide-react';
+import { getMovements, subscribeToMovements, subscribeToInventoryHistory } from '../services/firebaseService';
 import { toast } from 'react-hot-toast';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 export default function Movements({ language = 'es', user }) {
   const [movements, setMovements] = useState([]);
+  const [inventoryHistory, setInventoryHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [filterType, setFilterType] = useState(''); // '', 'Entrada', 'Salida', 'Merma', 'Ajuste'
   const [filterMonth, setFilterMonth] = useState('todos'); // 'todos', 'este-mes', 'mes-pasado'
+  const [activeTab, setActiveTab] = useState('movimientos'); // 'movimientos' | 'inventarios'
 
   // 🔥 REACTIVIDAD: Cargar movimientos con suscripción en tiempo real
   useEffect(() => {
@@ -25,6 +30,24 @@ export default function Movements({ language = 'es', user }) {
     // Cleanup: Desuscribirse al desmontar
     return () => {
       console.log('📤 Desuscribiéndose de movimientos');
+      unsubscribe();
+    };
+  }, [user]);
+
+  // 🔥 NUEVO: Cargar historial de inventarios en tiempo real
+  useEffect(() => {
+    if (!user) return;
+
+    setLoadingHistory(true);
+
+    const unsubscribe = subscribeToInventoryHistory(user.uid, (historyData) => {
+      console.log('📊 Historial de inventarios actualizado:', historyData.length);
+      setInventoryHistory(historyData);
+      setLoadingHistory(false);
+    });
+
+    return () => {
+      console.log('📤 Desuscribiéndose de historial');
       unsubscribe();
     };
   }, [user]);
@@ -163,6 +186,122 @@ export default function Movements({ language = 'es', user }) {
     }
   };
 
+  // 📄 REGENERAR PDF desde historial
+  const regeneratePDF = (historyItem) => {
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.width;
+      
+      // Encabezado Corporativo - ROAL BURGER
+      doc.setFillColor(220, 53, 69);
+      doc.rect(0, 0, pageWidth, 40, 'F');
+      
+      doc.setFontSize(26);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('ROAL BURGER', pageWidth / 2, 15, { align: 'center' });
+      
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'normal');
+      doc.text('REPORTE DE INVENTARIO', pageWidth / 2, 25, { align: 'center' });
+      
+      // Fecha y Hora del registro
+      const { fecha, hora } = formatDateTime(historyItem.fecha);
+      doc.setFontSize(10);
+      doc.setTextColor(255, 255, 255);
+      doc.text(`${fecha} - ${hora}`, pageWidth / 2, 34, { align: 'center' });
+      
+      // Información del cierre
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Responsable: ${historyItem.responsable}`, 14, 50);
+      doc.text(`Proveedor: ${historyItem.proveedor}`, 14, 57);
+      
+      // Separador
+      doc.setDrawColor(220, 53, 69);
+      doc.setLineWidth(0.5);
+      doc.line(14, 65, pageWidth - 14, 65);
+      
+      // Tabla con datos del historial
+      const tableData = (historyItem.productos || []).map(item => {
+        const costoSalida = (item.cantidadSalida || 0) * (item.costoUnitario || 0);
+        return [
+          item.nombre || item.productoNombre,
+          item.unidad,
+          (item.stockInicial || item.stockTeorico || 0).toString(),
+          (item.stockFinal || item.stockFisico || 0).toString(),
+          (item.cantidadSalida || item.consumo || 0).toString(),
+          `$${costoSalida.toFixed(2)}`,
+          item.observaciones || '-'
+        ];
+      });
+      
+      doc.autoTable({
+        startY: 70,
+        head: [['Producto', 'Unidad', 'Stock Teórico', 'Conteo Físico', 'Consumo', 'Costo Salida', 'Observaciones']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: { 
+          fillColor: [220, 53, 69],
+          textColor: 255,
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'center'
+        },
+        bodyStyles: { 
+          fontSize: 7,
+          cellPadding: 2
+        },
+        columnStyles: {
+          0: { cellWidth: 45 },
+          1: { cellWidth: 18, halign: 'center' },
+          2: { cellWidth: 22, halign: 'center' },
+          3: { cellWidth: 22, halign: 'center' },
+          4: { cellWidth: 20, halign: 'center' },
+          5: { cellWidth: 25, halign: 'right' },
+          6: { cellWidth: 33 }
+        }
+      });
+      
+      // Sumatoria total
+      let finalY = doc.lastAutoTable.finalY + 12;
+      doc.setFillColor(240, 240, 240);
+      doc.roundedRect(14, finalY - 3, pageWidth - 28, 32, 2, 2, 'F');
+      
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 53, 69);
+      doc.text('SUMATORIA TOTAL DE CONSUMO', 20, finalY + 5);
+      
+      doc.setFontSize(18);
+      doc.text(`${historyItem.total_unidades_salientes || 0} UNIDADES`, pageWidth - 20, finalY + 14, { align: 'right' });
+      
+      doc.setFontSize(12);
+      doc.setTextColor(0, 128, 0);
+      doc.text(`COSTO: $${(historyItem.totalCostoSalidas || 0).toFixed(2)}`, pageWidth - 20, finalY + 23, { align: 'right' });
+      
+      // Línea de firma
+      finalY += 48;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
+      doc.text('Firma del Responsable:', 14, finalY);
+      doc.setLineWidth(0.5);
+      doc.setDrawColor(0, 0, 0);
+      doc.line(55, finalY, 130, finalY);
+      
+      // Descargar PDF
+      const fileName = `Inventario_${historyItem.proveedor}_${fecha.replace(/\//g, '-')}.pdf`;
+      doc.save(fileName);
+      
+      toast.success('PDF generado correctamente');
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      toast.error('Error al generar el PDF');
+    }
+  };
+
   return (
     <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-6 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
       {/* Título */}
@@ -175,6 +314,37 @@ export default function Movements({ language = 'es', user }) {
         </p>
       </div>
 
+      {/* TABS: Movimientos vs Historial de Inventarios */}
+      <div className="mb-6">
+        <div className="flex gap-2 border-b border-gray-700 light-mode:border-gray-300">
+          <button
+            onClick={() => setActiveTab('movimientos')}
+            className={`px-6 py-3 font-semibold transition-all flex items-center gap-2 ${
+              activeTab === 'movimientos'
+                ? 'text-blue-400 border-b-2 border-blue-400'
+                : 'text-gray-400 light-mode:text-gray-600 hover:text-gray-300'
+            }`}
+          >
+            <Package className="w-5 h-5" />
+            {language === 'es' ? 'Movimientos' : 'Movements'}
+          </button>
+          <button
+            onClick={() => setActiveTab('inventarios')}
+            className={`px-6 py-3 font-semibold transition-all flex items-center gap-2 ${
+              activeTab === 'inventarios'
+                ? 'text-green-400 border-b-2 border-green-400'
+                : 'text-gray-400 light-mode:text-gray-600 hover:text-gray-300'
+            }`}
+          >
+            <History className="w-5 h-5" />
+            {language === 'es' ? 'Historial de Inventarios' : 'Inventory History'}
+          </button>
+        </div>
+      </div>
+
+      {/* CONTENIDO CONDICIONAL POR TAB */}
+      {activeTab === 'movimientos' ? (
+        <>
       {/* Resumen del mes */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="bg-gradient-to-br from-green-900/20 to-green-800/10 border border-green-700/50 rounded-lg p-4">
@@ -429,6 +599,104 @@ export default function Movements({ language = 'es', user }) {
           <p className="text-gray-400 light-mode:text-gray-600 text-lg">
             {language === 'es' ? 'No hay movimientos registrados' : 'No movements recorded'}
           </p>
+        </div>
+      )}
+      </>
+      ) : (
+        /* TAB DE HISTORIAL DE INVENTARIOS */
+        <div>
+          {loadingHistory ? (
+            <div className="bg-gray-800 light-mode:bg-white rounded-lg p-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400 mx-auto"></div>
+              <p className="text-gray-400 light-mode:text-gray-600 mt-4">
+                {language === 'es' ? 'Cargando historial...' : 'Loading history...'}
+              </p>
+            </div>
+          ) : inventoryHistory.length === 0 ? (
+            <div className="bg-gray-800 light-mode:bg-white rounded-lg p-12 text-center">
+              <History className="w-16 h-16 text-gray-600 light-mode:text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-400 light-mode:text-gray-600 text-lg font-semibold">
+                {language === 'es' ? 'No hay inventarios registrados aún' : 'No inventories registered yet'}
+              </p>
+              <p className="text-gray-500 light-mode:text-gray-500 text-sm mt-2">
+                {language === 'es' 
+                  ? 'Los inventarios finalizados aparecerán aquí para su consulta' 
+                  : 'Completed inventories will appear here for review'}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-gray-800 light-mode:bg-white rounded-lg shadow-lg overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-750 light-mode:bg-gray-100 border-b border-gray-700 light-mode:border-gray-200">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-gray-300 light-mode:text-gray-700 font-semibold">
+                        {language === 'es' ? 'Fecha' : 'Date'}
+                      </th>
+                      <th className="px-4 py-3 text-left text-gray-300 light-mode:text-gray-700 font-semibold">
+                        {language === 'es' ? 'Proveedor' : 'Provider'}
+                      </th>
+                      <th className="px-4 py-3 text-left text-gray-300 light-mode:text-gray-700 font-semibold">
+                        {language === 'es' ? 'Responsable' : 'Responsible'}
+                      </th>
+                      <th className="px-4 py-3 text-center text-gray-300 light-mode:text-gray-700 font-semibold">
+                        {language === 'es' ? 'Unidades Salientes' : 'Outgoing Units'}
+                      </th>
+                      <th className="px-4 py-3 text-right text-gray-300 light-mode:text-gray-700 font-semibold">
+                        {language === 'es' ? 'Costo Total' : 'Total Cost'}
+                      </th>
+                      <th className="px-4 py-3 text-center text-gray-300 light-mode:text-gray-700 font-semibold">
+                        {language === 'es' ? 'Acciones' : 'Actions'}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {inventoryHistory.map((item) => {
+                      const { fecha, hora } = formatDateTime(item.fecha);
+                      
+                      return (
+                        <tr
+                          key={item.id}
+                          className="border-b border-gray-700 light-mode:border-gray-200 hover:bg-gray-750 light-mode:hover:bg-gray-50 transition-colors"
+                        >
+                          <td className="px-4 py-3 text-gray-300 light-mode:text-gray-900">
+                            <div className="text-xs">
+                              <p className="font-semibold">{fecha}</p>
+                              <p className="text-gray-500 light-mode:text-gray-600">{hora}</p>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-300 light-mode:text-gray-900 font-semibold">
+                            {item.proveedor}
+                          </td>
+                          <td className="px-4 py-3 text-gray-300 light-mode:text-gray-900">
+                            {item.responsable}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-3 py-1 bg-red-900/30 text-red-400 rounded-full text-xs font-bold">
+                              {item.total_unidades_salientes || 0}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-green-400 font-bold">
+                            ${formatCurrency(item.totalCostoSalidas || 0)}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => regeneratePDF(item)}
+                              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors mx-auto text-xs"
+                              title={language === 'es' ? 'Descargar PDF' : 'Download PDF'}
+                            >
+                              <Download className="w-4 h-4" />
+                              {language === 'es' ? 'PDF' : 'PDF'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

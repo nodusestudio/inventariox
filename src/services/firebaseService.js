@@ -837,6 +837,77 @@ export const getInventoryLogs = async (userId) => {
   }
 };
 
+// ============================================================================
+// HISTORIAL DE INVENTARIOS (inventory_history) - Trazabilidad completa
+// ============================================================================
+
+/**
+ * Guardar registro completo de inventario en historial para trazabilidad
+ */
+export const saveInventoryHistory = async (userId, responsable, proveedor, productos, totalConsumo, totalCostoSalidas) => {
+  try {
+    const historyDoc = {
+      responsable: responsable.trim(),
+      proveedor: proveedor.trim(),
+      total_unidades_salientes: totalConsumo,
+      totalCostoSalidas,
+      productos,  // Detalle completo de cada producto
+      userId,
+      fecha: Timestamp.now(),
+      createdAt: Timestamp.now()
+    };
+
+    const docRef = await addDoc(collection(db, 'inventory_history'), historyDoc);
+    console.log('✅ Historial guardado en inventory_history con ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ Error al guardar historial:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtener todos los registros de historial de inventarios
+ */
+export const getInventoryHistory = async (userId) => {
+  try {
+    const q = query(
+      collection(db, 'inventory_history'),
+      where('userId', '==', userId),
+      orderBy('fecha', 'desc')
+    );
+    const querySnapshot = await getDocs(q);
+    const history = [];
+    querySnapshot.forEach((doc) => {
+      history.push({ id: doc.id, ...doc.data() });
+    });
+    console.log(`📊 ${history.length} inventarios en historial`);
+    return history;
+  } catch (error) {
+    console.error('❌ Error al obtener historial:', error);
+    throw error;
+  }
+};
+
+/**
+ * Suscripción en tiempo real a inventory_history
+ */
+export const subscribeToInventoryHistory = (userId, callback) => {
+  const q = query(
+    collection(db, 'inventory_history'),
+    where('userId', '==', userId),
+    orderBy('fecha', 'desc')
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const history = [];
+    snapshot.forEach((doc) => {
+      history.push({ id: doc.id, ...doc.data() });
+    });
+    callback(history);
+  });
+};
+
 // 🔥 REACTIVIDAD: Suscripción en tiempo real para inventory_logs
 export const subscribeToInventoryLogs = (userId, callback) => {
   const q = query(collection(db, 'inventory_logs'), where('userId', '==', userId));

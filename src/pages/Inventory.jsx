@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, AlertTriangle } from 'lucide-react';
+import { FileCheck, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Download, Sparkles } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { addInventoryLog, getTodayInventoryLog, updateProduct } from '../services/firebaseService';
+import { addInventoryLog, getTodayInventoryLog, updateProduct, saveInventoryHistory, subscribeToInventoryHistory } from '../services/firebaseService';
 
 
 export default function Inventory({ 
@@ -19,6 +19,12 @@ export default function Inventory({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [todayLog, setTodayLog] = useState(null);
+  const [inventoryHistory, setInventoryHistory] = useState([]);
+  const [analytics, setAnalytics] = useState({
+    productoEstrella: null,
+    bajaRotacion: null,
+    inversionSalidas: 0
+  });
 
   // ============ VERIFICAR SI YA HAY CIERRE HOY ============
   useEffect(() => {
@@ -28,6 +34,22 @@ export default function Inventory({
       setTodayLog(log);
     };
     checkTodayLog();
+  }, [userId]);
+
+  // ============ SUSCRIPCIÓN AL HISTORIAL EN TIEMPO REAL ============
+  useEffect(() => {
+    if (!userId) return;
+
+    const unsubscribe = subscribeToInventoryHistory(userId, (history) => {
+      setInventoryHistory(history);
+      
+      // Calcular analíticas automáticamente
+      if (history.length > 0) {
+        calculateAnalytics(history);
+      }
+    });
+
+    return () => unsubscribe();
   }, [userId]);
 
   // ============ CARGAR PRODUCTOS AL SELECCIONAR PROVEEDOR ============
@@ -82,6 +104,123 @@ export default function Inventory({
     setInventoryData(prev => prev.map(item => 
       item.id === productId ? { ...item, observaciones: value } : item
     ));
+  };
+
+  // ============ ANÁLISIS INTELIGENTE DE INVENTARIOS ============
+  const calculateAnalytics = (history) => {
+    if (!history || history.length === 0) return;
+
+    // Consolidar todos los productos de todos los historiales
+    const productosConsolidados = {};
+    
+    history.forEach(registro => {
+      if (registro.productos && Array.isArray(registro.productos)) {
+        registro.productos.forEach(producto => {
+          if (!productosConsolidados[producto.nombre]) {
+            productosConsolidados[producto.nombre] = {
+              nombre: producto.nombre,
+              totalSalidas: 0,
+              totalCostoSalidas: 0,
+              registros: []
+            };
+          }
+          productosConsolidados[producto.nombre].totalSalidas += producto.cantidadSalida || 0;
+          productosConsolidados[producto.nombre].totalCostoSalidas += producto.totalCostoSalida || 0;
+          productosConsolidados[producto.nombre].registros.push({
+            fecha: registro.fecha,
+            salida: producto.cantidadSalida || 0
+          });
+        });
+      }
+    });
+
+    const productosArray = Object.values(productosConsolidados);
+
+    // Producto Estrella (mayor salida total)
+    const productoEstrella = productosArray.reduce((max, p) => 
+      p.totalSalidas > (max?.totalSalidas || 0) ? p : max
+    , null);
+
+    // Baja Rotación (menor salida total, excluyendo ceros)
+    const productosConSalida = productosArray.filter(p => p.totalSalidas > 0);
+    const bajaRotacion = productosConSalida.reduce((min, p) => 
+      p.totalSalidas < (min?.totalSalidas || Infinity) ? p : min
+    , null);
+
+    // Inversión Total en Salidas
+    const inversionSalidas = productosArray.reduce((sum, p) => 
+      sum + p.totalCostoSalidas, 0
+    );
+
+    setAnalytics({
+      productoEstrella,
+      bajaRotacion,
+      inversionSalidas
+    });
+  };
+
+  // ============ DETECCIÓN DE ANOMALÍAS ============
+  const detectarAnomalia = (producto, historialCompleto) => {
+    if (!historialCompleto || historialCompleto.length < 3) return false;
+
+    // Obtener historial del producto específico
+    const salidasProducto = [];
+    historialCompleto.forEach(registro => {
+      if (registro.productos && Array.isArray(registro.productos)) {
+        const prod = registro.productos.find(p => p.nombre === producto.nombre);
+        if (prod && prod.cantidadSalida) {
+          salidasProducto.push(prod.cantidadSalida);
+        }
+      }
+    });
+
+    if (salidasProducto.length < 3) return false;
+
+    // Calcular promedio y desviación estándar
+    const promedio = salidasProducto.reduce((a, b) => a + b, 0) / salidasProducto.length;
+    const desviacion = Math.sqrt(
+      salidasProducto.reduce((sum, val) => sum + Math.pow(val - promedio, 2), 0) / salidasProducto.length
+    );
+
+    // Última salida
+    const ultimaSalida = salidasProducto[0];
+
+    // Anomalía: última salida supera 2 desviaciones estándar del promedio
+    return ultimaSalida > (promedio + 2 * desviacion);
+  };
+
+  // ============ RE-DESCARGAR PDF DESDE HISTORIAL ============
+  const reGeneratePDF = (historyRecord) => {
+    // Reconstruir data desde el registro histórico
+    const data = historyRecord.productos.map(p => ({
+      nombre: p.nombre,
+      unidad: p.unidad,
+      stockTeorico: p.stockInicial,
+      stockFisico: p.stockFinal,
+      diferencia: p.consumo || p.cantidadSalida,
+      observaciones: p.observaciones || '',
+      costoUnitario: p.costoUnitario || 0
+    }));
+
+    // Usar el responsable y proveedor del registro
+    const tempResponsible = selectedResponsible;
+    const tempProvider = selectedProvider;
+    setSelectedResponsible(historyRecord.responsable);
+    setSelectedProvider(historyRecord.proveedor);
+
+    // Generar PDF
+    const doc = generatePDF(data);
+    
+    // Restaurar valores originales
+    setSelectedResponsible(tempResponsible);
+    setSelectedProvider(tempProvider);
+
+    // Crear nombre de archivo con fecha del registro
+    const fecha = historyRecord.fecha?.toDate ? historyRecord.fecha.toDate() : new Date();
+    const fechaStr = fecha.toISOString().split('T')[0];
+    const fileName = `Reporte_Inventario_${historyRecord.proveedor}_${fechaStr}.pdf`;
+    
+    doc.save(fileName);
   };
 
   // ============ GENERAR PDF DE CLASE MUNDIAL (Professional ERP Standard) ============
@@ -418,16 +557,18 @@ export default function Inventory({
       console.log('- Consumo Total (unidades):', totalConsumo);
       console.log('- 💰 Costo Total Salidas: $', totalCostoSalidas.toFixed(2));
 
-      // FLUJO DIRECTO: Guardar en Firebase EN PARALELO con doble registro
-      console.log('🚀 Guardando en Firebase (inventory_logs + inventory_movements)...');
+      // FLUJO DIRECTO: Guardar en Firebase EN PARALELO con TRIPLE registro
+      console.log('🚀 Guardando en Firebase (inventory_logs + inventory_movements + inventory_history)...');
       await Promise.all([
         addInventoryLog(userId, responsable, proveedor, productos, totalCostoSalidas),
+        saveInventoryHistory(userId, responsable, proveedor, productos, totalConsumo, totalCostoSalidas),
         ...inventoryData.map(item => 
           updateProduct(item.id, { stockActual: parseFloat(item.stockFisico) })
         )
       ]);
       console.log('✅ Registro completado en inventory_logs');
       console.log('✅ Movimientos guardados en inventory_movements');
+      console.log('✅ Historial guardado en inventory_history (trazabilidad)');
       console.log('✅ Stock maestro (products) actualizado con Stock Físico');
 
       // Generar y descargar PDF (operación asíncrona)
@@ -494,6 +635,80 @@ export default function Inventory({
                 {language === 'es' 
                   ? `Proveedor: ${todayLog.proveedor} - Responsable: ${todayLog.responsable}` 
                   : `Provider: ${todayLog.proveedor} - Responsible: ${todayLog.responsable}`}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============ DASHBOARD DE INTELIGENCIA: RESUMEN EJECUTIVO ============ */}
+      {inventoryHistory.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          {/* Producto Estrella */}
+          <div className="bg-gradient-to-br from-yellow-600 to-yellow-700 rounded-lg p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 bg-yellow-500/30 rounded-full flex items-center justify-center">
+                <TrendingUp className="w-6 h-6 text-yellow-100" />
+              </div>
+              <div>
+                <p className="text-yellow-100 text-sm font-semibold">Producto Estrella</p>
+                <p className="text-yellow-50 text-xs">Mayor salida total</p>
+              </div>
+            </div>
+            {analytics.productoEstrella ? (
+              <div>
+                <p className="text-white font-bold text-xl mb-1">{analytics.productoEstrella.nombre}</p>
+                <p className="text-yellow-100 text-2xl font-black">{analytics.productoEstrella.totalSalidas} unidades</p>
+                <p className="text-yellow-200 text-sm mt-2">
+                  Costo: ${analytics.productoEstrella.totalCostoSalidas.toFixed(2)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-yellow-100">Sin datos suficientes</p>
+            )}
+          </div>
+
+          {/* Baja Rotación */}
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 bg-blue-500/30 rounded-full flex items-center justify-center">
+                <TrendingDown className="w-6 h-6 text-blue-100" />
+              </div>
+              <div>
+                <p className="text-blue-100 text-sm font-semibold">Baja Rotación</p>
+                <p className="text-blue-50 text-xs">Menor movimiento</p>
+              </div>
+            </div>
+            {analytics.bajaRotacion ? (
+              <div>
+                <p className="text-white font-bold text-xl mb-1">{analytics.bajaRotacion.nombre}</p>
+                <p className="text-blue-100 text-2xl font-black">{analytics.bajaRotacion.totalSalidas} unidades</p>
+                <p className="text-blue-200 text-sm mt-2">
+                  Costo: ${analytics.bajaRotacion.totalCostoSalidas.toFixed(2)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-blue-100">Sin datos suficientes</p>
+            )}
+          </div>
+
+          {/* Inversión en Salidas */}
+          <div className="bg-gradient-to-br from-green-600 to-green-700 rounded-lg p-6 shadow-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-12 h-12 bg-green-500/30 rounded-full flex items-center justify-center">
+                <DollarSign className="w-6 h-6 text-green-100" />
+              </div>
+              <div>
+                <p className="text-green-100 text-sm font-semibold">Inversión en Salidas</p>
+                <p className="text-green-50 text-xs">Costo total acumulado</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-white font-bold text-3xl mb-1">
+                ${analytics.inversionSalidas.toFixed(2)}
+              </p>
+              <p className="text-green-200 text-sm mt-2">
+                {inventoryHistory.length} registros analizados
               </p>
             </div>
           </div>
@@ -716,6 +931,125 @@ export default function Inventory({
               ? 'Selecciona un proveedor para iniciar el conteo'
               : 'Select a provider to start counting'}
           </p>
+        </div>
+      )}
+      
+      {/* ============ HISTORIAL DE CIERRES DE INVENTARIO ============ */}
+      {inventoryHistory.length > 0 && (
+        <div className="bg-gray-800 light-mode:bg-white rounded-lg shadow-lg overflow-hidden mb-6">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-purple-600 to-purple-700 p-4">
+            <div className="flex items-center gap-3">
+              <Sparkles className="w-6 h-6 text-purple-100" />
+              <div>
+                <h2 className="text-white font-bold text-xl">
+                  Historial de Cierres de Inventario
+                </h2>
+                <p className="text-purple-100 text-sm">
+                  Trazabilidad completa con análisis de anomalías
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabla de Historial */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-750 light-mode:bg-gray-200 border-b border-gray-700 light-mode:border-gray-300">
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-300 light-mode:text-gray-700">
+                    Fecha/Hora
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-300 light-mode:text-gray-700">
+                    Proveedor
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-300 light-mode:text-gray-700">
+                    Responsable
+                  </th>
+                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-300 light-mode:text-gray-700">
+                    Valorizado Salida ($)
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300 light-mode:text-gray-700">
+                    Anomalías
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300 light-mode:text-gray-700">
+                    Acción
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {inventoryHistory.map((record, idx) => {
+                  // Detectar anomalías en productos de este registro
+                  let tieneAnomalias = false;
+                  if (record.productos && Array.isArray(record.productos)) {
+                    tieneAnomalias = record.productos.some(producto => 
+                      detectarAnomalia(producto, inventoryHistory)
+                    );
+                  }
+
+                  const fecha = record.fecha?.toDate ? record.fecha.toDate() : new Date();
+                  const fechaStr = fecha.toLocaleDateString('es-CL', { 
+                    day: '2-digit', 
+                    month: '2-digit', 
+                    year: 'numeric' 
+                  });
+                  const horaStr = fecha.toLocaleTimeString('es-CL', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                  });
+
+                  return (
+                    <tr 
+                      key={record.id}
+                      className={`border-b border-gray-700 light-mode:border-gray-200 ${
+                        idx % 2 === 0 ? 'bg-gray-800 light-mode:bg-white' : 'bg-gray-750 light-mode:bg-gray-50'
+                      }`}
+                    >
+                      <td className="px-4 py-3">
+                        <div className="text-white light-mode:text-gray-900 font-semibold">
+                          {fechaStr}
+                        </div>
+                        <div className="text-gray-400 light-mode:text-gray-600 text-sm">
+                          {horaStr}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-white light-mode:text-gray-900 font-medium">
+                        {record.proveedor}
+                      </td>
+                      <td className="px-4 py-3 text-gray-300 light-mode:text-gray-700">
+                        {record.responsable}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className="text-green-400 light-mode:text-green-600 font-bold text-lg">
+                          ${(record.totalCostoSalidas || 0).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {tieneAnomalias ? (
+                          <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-600/20 border border-red-500 rounded-full text-red-400 text-xs font-semibold">
+                            <AlertTriangle className="w-3 h-3" />
+                            Anomalía detectada
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 text-xs">Normal</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => reGeneratePDF(record)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg"
+                        >
+                          <Download className="w-4 h-4" />
+                          Re-descargar PDF
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
