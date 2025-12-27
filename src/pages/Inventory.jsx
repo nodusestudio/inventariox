@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, Printer, Save, AlertTriangle } from 'lucide-react';
+import { FileCheck, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { addInventoryLog, getTodayInventoryLog, updateProduct } from '../services/firebaseService';
-import ConfirmationModal from '../components/ConfirmationModal';
 
 
 export default function Inventory({ 
@@ -15,15 +14,11 @@ export default function Inventory({
   // ============ ESTADO PRINCIPAL ============
   const [selectedProvider, setSelectedProvider] = useState('');
   const [selectedResponsible, setSelectedResponsible] = useState('');
-  const [selectedSede, setSelectedSede] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [todayLog, setTodayLog] = useState(null);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewDoc, setPreviewDoc] = useState(null);
 
   // ============ VERIFICAR SI YA HAY CIERRE HOY ============
   useEffect(() => {
@@ -112,7 +107,6 @@ export default function Inventory({
     doc.text(`Fecha: ${fecha} ${hora}`, 14, 45);
     doc.text(`Proveedor: ${selectedProvider}`, 14, 52);
     doc.text(`Responsable: ${selectedResponsible}`, 14, 59);
-    doc.text(`Sede: ${selectedSede}`, 14, 66);
     
     // Estadísticas a la derecha
     const totalSalidas = data.reduce((sum, item) => {
@@ -124,14 +118,11 @@ export default function Inventory({
     doc.setFontSize(9);
     doc.text(`Total Productos: ${data.length}`, pageWidth - 14, 52, { align: 'right' });
     doc.text(`Productos con Salidas: ${productosSalidas}`, pageWidth - 14, 59, { align: 'right' });
-    doc.setTextColor(totalSalidas > 0 ? [220, 53, 69] : [34, 139, 34]);
-    doc.text(`Total Unidades Salientes (Ventas/Consumo): ${totalSalidas}`, pageWidth - 14, 66, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
     
     // Separador
     doc.setDrawColor(220, 53, 69);
     doc.setLineWidth(0.5);
-    doc.line(14, 70, pageWidth - 14, 70);
+    doc.line(14, 65, pageWidth - 14, 65);
     
     // Tabla de productos
     const tableData = data.map(item => [
@@ -144,8 +135,8 @@ export default function Inventory({
     ]);
     
     doc.autoTable({
-      startY: 75,
-      head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Unidades Salientes', 'Observaciones']],
+      startY: 70,
+      head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Salidas (Ventas)', 'Observaciones']],
       body: tableData,
       theme: 'striped',
       headStyles: { 
@@ -295,21 +286,17 @@ export default function Inventory({
     return doc;
   };
 
-  // ============ CERRAR INVENTARIO Y GUARDAR ============
+  // ============ CERRAR INVENTARIO Y GUARDAR DIRECTAMENTE ============
   const handleCloseInventory = async () => {
     // Validación 1: Campos obligatorios
-    if (!selectedProvider || !selectedResponsible || !selectedSede) {
-      alert(language === 'es' 
-        ? 'Debes seleccionar Proveedor, Responsable y Sede' 
-        : 'You must select Provider, Responsible and Location');
+    if (!selectedProvider || !selectedResponsible) {
+      alert('Debes seleccionar Proveedor e ingresar el nombre del Responsable');
       return;
     }
 
     // Validación 2: Verificar que hay productos cargados
     if (!inventoryData || inventoryData.length === 0) {
-      alert(language === 'es'
-        ? 'No hay productos cargados para generar el reporte'
-        : 'No products loaded to generate the report');
+      alert('No hay productos cargados para generar el reporte');
       return;
     }
 
@@ -318,91 +305,17 @@ export default function Inventory({
       item.stockFisico === '' || item.stockFisico === null || item.stockFisico === undefined
     );
     if (incomplete) {
-      alert(language === 'es'
-        ? 'Debes ingresar el stock físico de todos los productos'
-        : 'You must enter the physical stock for all products');
+      alert('Debes ingresar el stock físico de todos los productos');
       return;
     }
 
-    // Validación 4: Verificar que las variables críticas existen antes de generar PDF
-    const isDataValid = selectedSede && selectedResponsible && selectedProvider && 
-                        inventoryData.every(item => 
-                          item.nombre && item.unidad !== undefined && 
-                          item.stockTeorico !== undefined && item.diferencia !== undefined
-                        );
-    
-    if (!isDataValid) {
-      alert(language === 'es'
-        ? 'Error: Datos incompletos. Verifica que todos los campos estén correctos.'
-        : 'Error: Incomplete data. Verify that all fields are correct.');
-      return;
-    }
-
-    // Generar PDF y mostrar vista previa solo si todas las validaciones pasan
-    try {
-      const doc = generatePDF(inventoryData);
-      setPreviewDoc(doc);
-      setShowPreview(true);
-      setShowConfirmClose(false);
-    } catch (error) {
-      console.error('Error generando vista previa:', error);
-      alert(language === 'es'
-        ? 'Error al generar la vista previa del PDF. Verifica los datos ingresados.'
-        : 'Error generating PDF preview. Verify the entered data.');
-    }
-  };
-
-  // ============ CONFIRMAR Y GUARDAR DESPUÉS DE VISTA PREVIA ============
-  const handleConfirmAndSave = async () => {
     setIsProcessing(true);
     
     try {
-      // Validación CRÍTICA 1: Verificar que Responsable está definido y no vacío
-      if (!selectedResponsible || selectedResponsible.trim() === '') {
-        console.error('Error: Responsable no definido o vacío');
-        throw new Error('CAMPO_RESPONSABLE');
-      }
-      
-      // Validación CRÍTICA 2: Verificar que Sede está definida y no vacía
-      if (!selectedSede || selectedSede.trim() === '') {
-        console.error('Error: Sede no definida o vacía');
-        throw new Error('CAMPO_SEDE');
-      }
-      
-      // Validación CRÍTICA 3: Verificar que Proveedor está definido y no vacío
-      if (!selectedProvider || selectedProvider.trim() === '') {
-        console.error('Error: Proveedor no definido o vacío');
-        throw new Error('CAMPO_PROVEEDOR');
-      }
-      
-      // Validación CRÍTICA 4: Verificar que el array de productos existe y tiene datos
-      if (!inventoryData || !Array.isArray(inventoryData) || inventoryData.length === 0) {
-        console.error('Error: Array de productos no válido:', inventoryData);
-        throw new Error('PRODUCTOS_INVALIDOS');
-      }
-      
-      // Validación CRÍTICA 5: Verificar integridad de cada producto
-      const invalidProducts = inventoryData.filter(item => 
-        !item.id || !item.nombre || item.stockTeorico === undefined || 
-        item.stockFisico === '' || item.stockFisico === null || item.stockFisico === undefined
-      );
-      
-      if (invalidProducts.length > 0) {
-        console.error('Error: Productos con datos incompletos:', invalidProducts);
-        throw new Error('DATOS_PRODUCTOS_INCOMPLETOS');
-      }
-
-      // Preparar datos para Firebase con validación completa
-      console.log('Preparando datos para Firebase...');
-      console.log('Responsable:', selectedResponsible);
-      console.log('Sede:', selectedSede);
-      console.log('Proveedor:', selectedProvider);
-      console.log('Cantidad de productos:', inventoryData.length);
-      
+      // Preparar datos para Firebase
       const logData = {
         proveedor: selectedProvider,
         responsable: selectedResponsible,
-        sede: selectedSede,
         productos: inventoryData.map(item => ({
           id: item.id,
           nombre: item.nombre,
@@ -418,93 +331,36 @@ export default function Inventory({
         ),
         totalProductos: inventoryData.length
       };
-      
-      console.log('Datos preparados correctamente:', logData);
 
-      // PASO 1: Guardar en Firebase primero
-      console.log('Guardando en Firebase...');
-      try {
-        await addInventoryLog(userId, logData);
-        console.log('✓ Guardado exitoso en Firebase');
-      } catch (firebaseError) {
-        console.error('❌ Error Firebase:', firebaseError);
-        throw new Error('CONEXION_FIREBASE');
-      }
+      // PASO 1: Guardar en Firebase
+      await addInventoryLog(userId, logData);
 
-      // PASO 2: Actualizar stock maestro de productos
-      try {
-        const updatePromises = inventoryData.map(item => {
-          return updateProduct(item.id, {
-            stockActual: parseFloat(item.stockFisico)
-          });
+      // PASO 2: Actualizar stock maestro
+      const updatePromises = inventoryData.map(item => {
+        return updateProduct(item.id, {
+          stockActual: parseFloat(item.stockFisico)
         });
-        await Promise.all(updatePromises);
-      } catch (updateError) {
-        console.error('Error actualizando stock:', updateError);
-        // Continuar aunque falle la actualización del stock
-        alert(language === 'es'
-          ? '⚠️ Registro guardado pero hubo un error al actualizar el stock maestro'
-          : '⚠️ Record saved but there was an error updating master stock');
-      }
+      });
+      await Promise.all(updatePromises);
 
-      // PASO 3: Confirmar éxito del guardado en Firebase ANTES de generar PDF
-      alert(language === 'es'
-        ? '✓ Registro guardado exitosamente en la base de datos.\n✓ Stock actualizado.\n✓ Descargando PDF...'
-        : '✓ Record saved successfully in database.\n✓ Stock updated.\n✓ Downloading PDF...');
-      
-      // PASO 4: Solo después de confirmar guardado exitoso, descargar el PDF
-      if (previewDoc) {
-        const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
-        previewDoc.save(fileName);
-      }
+      // PASO 3: Generar y descargar PDF
+      const doc = generatePDF(inventoryData);
+      const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
+      doc.save(fileName);
 
       // Limpiar formulario
       setSelectedProvider('');
       setSelectedResponsible('');
-      setSelectedSede('');
       setFilteredProducts([]);
       setInventoryData([]);
       setHasUnsavedChanges(false);
-      setShowPreview(false);
-      setPreviewDoc(null);
+
+      // Mensaje de éxito simple
+      alert('Información guardada con éxito');
 
     } catch (error) {
-      console.error('Error al cerrar inventario:', error);
-      
-      // Mensajes de error específicos
-      let errorMsg = '';
-      
-      if (error.message === 'CAMPO_RESPONSABLE') {
-        errorMsg = language === 'es'
-          ? '❌ ERROR: El campo RESPONSABLE está vacío o es inválido.\nPor favor, ingresa el nombre del responsable.'
-          : '❌ ERROR: The RESPONSIBLE field is empty or invalid.\nPlease enter the responsible name.';
-      } else if (error.message === 'CAMPO_SEDE') {
-        errorMsg = language === 'es'
-          ? '❌ ERROR: El campo SEDE está vacío o es inválido.\nPor favor, ingresa el nombre de la sede.'
-          : '❌ ERROR: The LOCATION field is empty or invalid.\nPlease enter the location name.';
-      } else if (error.message === 'CAMPO_PROVEEDOR') {
-        errorMsg = language === 'es'
-          ? '❌ ERROR: El campo PROVEEDOR está vacío o es inválido.\nPor favor, selecciona un proveedor.'
-          : '❌ ERROR: The PROVIDER field is empty or invalid.\nPlease select a provider.';
-      } else if (error.message === 'CONEXION_FIREBASE') {
-        errorMsg = language === 'es'
-          ? '❌ ERROR DE CONEXIÓN: No se pudo conectar con la base de datos.\nVerifica tu conexión a internet e inténtalo nuevamente.'
-          : '❌ CONNECTION ERROR: Could not connect to database.\nCheck your internet connection and try again.';
-      } else if (error.message === 'PRODUCTOS_INVALIDOS') {
-        errorMsg = language === 'es'
-          ? '❌ ERROR: El array de productos está vacío o no es válido.\nSelecciona un proveedor y carga los productos antes de guardar.'
-          : '❌ ERROR: Product array is empty or invalid.\nSelect a provider and load products before saving.';
-      } else if (error.message === 'DATOS_PRODUCTOS_INCOMPLETOS') {
-        errorMsg = language === 'es'
-          ? '❌ ERROR: Algunos productos tienen datos incompletos.\nVerifica que todos los productos tengan Stock Físico ingresado.'
-          : '❌ ERROR: Some products have incomplete data.\nVerify that all products have Physical Stock entered.';
-      } else {
-        errorMsg = language === 'es'
-          ? `❌ Error inesperado al guardar el inventario.\nDetalles: ${error.message}\n\nContacta al administrador si el problema persiste.`
-          : `❌ Unexpected error saving inventory.\nDetails: ${error.message}\n\nContact administrator if the problem persists.`;
-      }
-      
-      alert(errorMsg);
+      console.error('Error al guardar inventario:', error);
+      alert('Error al guardar. Verifica tu conexión e intenta nuevamente.');
     } finally {
       setIsProcessing(false);
     }
@@ -515,7 +371,7 @@ export default function Inventory({
   const totalUnidadesSalientes = inventoryData.reduce((sum, item) => 
     sum + (item.diferencia < 0 ? Math.abs(item.diferencia) : 0), 0
   );
-  const canClose = selectedProvider && selectedResponsible && selectedSede && 
+  const canClose = selectedProvider && selectedResponsible && 
                    inventoryData.length > 0 && 
                    !inventoryData.some(item => item.stockFisico === '');
 
@@ -558,7 +414,7 @@ export default function Inventory({
           {language === 'es' ? 'Configuración de Conteo' : 'Count Configuration'}
         </h2>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Proveedor */}
           <div>
             <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
@@ -586,20 +442,6 @@ export default function Inventory({
               value={selectedResponsible}
               onChange={(e) => setSelectedResponsible(e.target.value)}
               placeholder={language === 'es' ? 'Nombre del responsable' : 'Responsible name'}
-              className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-
-          {/* Sede */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
-              {language === 'es' ? 'Sede' : 'Location'} <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={selectedSede}
-              onChange={(e) => setSelectedSede(e.target.value)}
-              placeholder={language === 'es' ? 'Nombre de la sede' : 'Location name'}
               className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
             />
           </div>
@@ -640,7 +482,7 @@ export default function Inventory({
               </div>
               
               <button
-                onClick={() => setShowConfirmClose(true)}
+                onClick={handleCloseInventory}
                 disabled={!canClose || isProcessing}
                 className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold transition-all ${
                   canClose && !isProcessing
@@ -650,8 +492,8 @@ export default function Inventory({
               >
                 <FileCheck className="w-5 h-5" />
                 {isProcessing 
-                  ? (language === 'es' ? 'Procesando...' : 'Processing...') 
-                  : (language === 'es' ? 'Finalizar y Generar Reporte' : 'Finalize and Generate Report')
+                  ? 'Procesando...' 
+                  : 'Finalizar y Generar Reporte'
                 }
               </button>
             </div>
@@ -675,7 +517,7 @@ export default function Inventory({
                     {language === 'es' ? 'Stock Físico' : 'Physical Stock'}
                   </th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300 light-mode:text-gray-700">
-                    {language === 'es' ? 'Unidades Salientes' : 'Exit Units'}
+                    {language === 'es' ? 'Salidas (Ventas)' : 'Sales (Exits)'}
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-300 light-mode:text-gray-700">
                     {language === 'es' ? 'Observaciones' : 'Notes'}
@@ -747,124 +589,6 @@ export default function Inventory({
               ? 'Selecciona un proveedor para iniciar el conteo'
               : 'Select a provider to start counting'}
           </p>
-        </div>
-      )}
-
-      {/* Modal de confirmación para generar vista previa */}
-      <ConfirmationModal
-        isOpen={showConfirmClose}
-        title={language === 'es' ? '📋 Generar Vista Previa' : '📋 Generate Preview'}
-        message={language === 'es' 
-          ? `Se generará una vista previa del reporte de inventario:\n\n📍 Sede: ${selectedSede}\n👤 Responsable: ${selectedResponsible}\n📦 Proveedor: ${selectedProvider}\n\n📊 Productos con Salidas: ${salidasCount}\n📉 Total Unidades Salientes (Ventas/Consumo): ${totalUnidadesSalientes}\n\nPodrás validar la información antes de confirmar el cierre definitivo.` 
-          : `An inventory report preview will be generated:\n\n📍 Location: ${selectedSede}\n👤 Responsible: ${selectedResponsible}\n📦 Provider: ${selectedProvider}\n\n📊 Products with Exits: ${salidasCount}\n📉 Total Exit Units (Sales/Consumption): ${totalUnidadesSalientes}\n\nYou can validate the information before confirming the final closure.`}
-        onConfirm={handleCloseInventory}
-        onCancel={() => setShowConfirmClose(false)}
-        confirmText={language === 'es' ? '✓ Generar Vista Previa' : '✓ Generate Preview'}
-        cancelText={language === 'es' ? 'Cancelar' : 'Cancel'}
-        isDangerous={false}
-      />
-
-      {/* Modal de Vista Previa del PDF */}
-      {showPreview && previewDoc && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 light-mode:bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
-            {/* Header de la vista previa */}
-            <div className="bg-red-600 p-6 text-white">
-              <h2 className="text-2xl font-bold mb-2">📄 VISTA PREVIA DEL REPORTE</h2>
-              <p className="text-sm opacity-90">Valida la información antes de confirmar el cierre definitivo</p>
-            </div>
-
-            {/* Información del reporte */}
-            <div className="p-6 bg-gray-750 light-mode:bg-gray-100 border-b border-gray-700 light-mode:border-gray-300">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Sede</p>
-                  <p className="text-white light-mode:text-gray-900 font-bold text-lg">{selectedSede}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Responsable</p>
-                  <p className="text-white light-mode:text-gray-900 font-bold text-lg">{selectedResponsible}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Proveedor</p>
-                  <p className="text-white light-mode:text-gray-900 font-bold text-lg">{selectedProvider}</p>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-800 light-mode:bg-white p-4 rounded-lg">
-                <div className="text-center">
-                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Total Productos</p>
-                  <p className="text-blue-400 light-mode:text-blue-600 font-bold text-2xl">{inventoryData.length}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Productos con Salidas</p>
-                  <p className="text-red-400 light-mode:text-red-600 font-bold text-2xl">{salidasCount}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Total Unidades Salientes (Ventas/Consumo)</p>
-                  <p className="text-red-400 light-mode:text-red-600 font-bold text-2xl">{totalUnidadesSalientes}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Mensaje de advertencia */}
-            <div className="p-6 overflow-y-auto flex-1">
-              <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-4 mb-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5" />
-                  <div>
-                    <p className="text-yellow-200 font-semibold mb-1">
-                      {language === 'es' ? '⚠️ Última verificación antes del cierre' : '⚠️ Final verification before closing'}
-                    </p>
-                    <p className="text-yellow-300 text-sm">
-                      {language === 'es' 
-                        ? 'Al confirmar, se ejecutarán las siguientes acciones IRREVERSIBLES:'
-                        : 'Upon confirmation, the following IRREVERSIBLE actions will be executed:'}
-                    </p>
-                    <ul className="text-yellow-300 text-sm mt-2 space-y-1 ml-4">
-                      <li>✓ {language === 'es' ? 'Registro permanente en base de datos' : 'Permanent database record'}</li>
-                      <li>✓ {language === 'es' ? `Actualización del stock de ${inventoryData.length} productos` : `Stock update for ${inventoryData.length} products`}</li>
-                      <li>✓ {language === 'es' ? 'Descarga automática del PDF' : 'Automatic PDF download'}</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-gray-300 light-mode:text-gray-700 text-center text-sm">
-                {language === 'es' 
-                  ? '¿Los datos de Sede y Responsable son correctos?' 
-                  : 'Are the Location and Responsible data correct?'}
-              </p>
-            </div>
-
-            {/* Botones de acción */}
-            <div className="p-6 border-t border-gray-700 light-mode:border-gray-300 flex gap-3 justify-end bg-gray-750 light-mode:bg-gray-100">
-              <button
-                onClick={() => {
-                  setShowPreview(false);
-                  setPreviewDoc(null);
-                }}
-                disabled={isProcessing}
-                className="px-6 py-3 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors font-semibold"
-              >
-                {language === 'es' ? 'Cancelar' : 'Cancel'}
-              </button>
-              <button
-                onClick={handleConfirmAndSave}
-                disabled={isProcessing}
-                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                  isProcessing
-                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    : 'bg-green-600 hover:bg-green-700 text-white shadow-lg'
-                }`}
-              >
-                {isProcessing 
-                  ? (language === 'es' ? '⏳ Procesando...' : '⏳ Processing...') 
-                  : (language === 'es' ? '✓ Confirmar y Descargar PDF' : '✓ Confirm and Download PDF')
-                }
-              </button>
-            </div>
-          </div>
         </div>
       )}
     </div>
