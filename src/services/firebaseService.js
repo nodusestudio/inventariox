@@ -721,6 +721,86 @@ export const deleteMerma = async (docId) => {
 };
 
 // ============================================================================
+// OPERACIONES DE INVENTARIO DIARIO (inventory_logs)
+// ============================================================================
+
+export const addInventoryLog = async (userId, inventoryData) => {
+  try {
+    const docRef = await addDoc(collection(db, 'inventory_logs'), {
+      ...inventoryData,
+      userId,
+      fecha_hora: Timestamp.now(),
+      createdAt: Timestamp.now()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding inventory log:', error);
+    throw error;
+  }
+};
+
+export const getInventoryLogs = async (userId) => {
+  try {
+    const q = query(collection(db, 'inventory_logs'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const inventoryLogs = [];
+    querySnapshot.forEach((doc) => {
+      inventoryLogs.push({ id: doc.id, ...doc.data() });
+    });
+    return inventoryLogs;
+  } catch (error) {
+    console.error('Error getting inventory logs:', error);
+    return [];
+  }
+};
+
+// 🔥 REACTIVIDAD: Suscripción en tiempo real para inventory_logs
+export const subscribeToInventoryLogs = (userId, callback) => {
+  const q = query(collection(db, 'inventory_logs'), where('userId', '==', userId));
+  
+  return onSnapshot(q,
+    (querySnapshot) => {
+      const inventoryLogs = [];
+      querySnapshot.forEach((doc) => {
+        inventoryLogs.push({ id: doc.id, ...doc.data() });
+      });
+      callback(inventoryLogs);
+    },
+    (error) => {
+      console.error('Error in inventory_logs subscription:', error);
+      callback([]);
+    }
+  );
+};
+
+// Verificar si ya existe un cierre de inventario para hoy
+export const getTodayInventoryLog = async (userId) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const q = query(
+      collection(db, 'inventory_logs'),
+      where('userId', '==', userId),
+      where('fecha_hora', '>=', Timestamp.fromDate(today)),
+      where('fecha_hora', '<', Timestamp.fromDate(tomorrow))
+    );
+    
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+      const doc = querySnapshot.docs[0];
+      return { id: doc.id, ...doc.data() };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting today inventory log:', error);
+    return null;
+  }
+};
+
+// ============================================================================
 // OPERACIONES DE AUDITORÍA
 // ============================================================================
 
