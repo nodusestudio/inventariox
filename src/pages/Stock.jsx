@@ -129,18 +129,34 @@ export default function Stock({
     // Anti-duplicado: no permitir múltiples clics
     if (isSaving) return;
     
-    if (!formData.nombre || !formData.proveedor || !formData.unidad || formData.costo === '') {
-      alert(language === 'es' ? 'Por favor completa todos los campos requeridos' : 'Please fill all required fields');
+    // Validación con toast.error
+    if (!formData.nombre || !formData.nombre.trim()) {
+      toast.error('❌ El nombre del producto es obligatorio');
+      return;
+    }
+
+    if (!formData.proveedor || !formData.proveedor.trim()) {
+      toast.error('❌ El proveedor es obligatorio');
+      return;
+    }
+
+    if (!formData.unidad || !formData.unidad.trim()) {
+      toast.error('❌ La unidad es obligatoria');
+      return;
+    }
+
+    if (formData.costo === '' || formData.costo === null || formData.costo === undefined) {
+      toast.error('❌ El costo es obligatorio');
       return;
     }
 
     // Validar cantidades negativas
-    const stockActualVal = parseInt(formData.stockActual) || 0;
-    const stockMinimoVal = parseInt(formData.stockMinimo) || 1;
-    const stockCompraVal = parseInt(formData.stockCompra) || 10;
+    const stockActualVal = Number(formData.stockActual) || 0;
+    const stockMinimoVal = Number(formData.stockMinimo) || 1;
+    const stockCompraVal = Number(formData.stockCompra) || 10;
 
     if (stockActualVal < 0 || stockMinimoVal < 0 || stockCompraVal < 0) {
-      alert(language === 'es' ? '❌ Las cantidades no pueden ser negativas' : '❌ Quantities cannot be negative');
+      toast.error('❌ Las cantidades no pueden ser negativas');
       return;
     }
 
@@ -154,19 +170,19 @@ export default function Stock({
     }
 
     const productData = {
-      nombre: formData.nombre.toUpperCase(),
-      proveedor: formData.proveedor.toUpperCase(),
-      unidad: formData.unidad.toUpperCase(),
-      costo: Math.round(parseFloat(formData.costo) || 0),
-      stockActual: parseInt(formData.stockActual) || 0,
-      stockMinimo: parseInt(formData.stockMinimo) || 1,
-      stockCompra: parseInt(formData.stockCompra) || 10
+      nombre: formData.nombre.trim().toUpperCase(),
+      proveedor: formData.proveedor.trim().toUpperCase(),
+      unidad: formData.unidad.trim().toUpperCase(),
+      costo: Number(formData.costo) || 0,
+      stockActual: Number(formData.stockActual) || 0,
+      stockMinimo: Number(formData.stockMinimo) || 1,
+      stockCompra: Number(formData.stockCompra) || 10
     };
 
     setIsSaving(true);
     try {
       if (isEditing) {
-        await updateProduct(user.uid, editingId, productData);
+        await updateProduct(editingId, productData);
         // Actualizar lista local
         setProducts(products.map(p => 
           p.id === editingId ? { ...p, ...productData } : p
@@ -181,7 +197,11 @@ export default function Stock({
       setShowModal(false);
     } catch (error) {
       console.error('Error saving product:', error);
-      toast.error('❌ Error al guardar el producto');
+      if (error.message?.includes('obligatorios')) {
+        toast.error('❌ ' + error.message);
+      } else {
+        toast.error('❌ Error al guardar el producto');
+      }
     } finally {
       setIsSaving(false);
     }
@@ -242,7 +262,7 @@ export default function Stock({
     const updatedProduct = { ...productToAdjust, stockActual: newStock };
 
     try {
-      await updateProduct(user.uid, confirmAdjust, { stockActual: newStock });
+      await updateProduct(confirmAdjust, { stockActual: newStock });
       setProducts(products.map(p => p.id === confirmAdjust ? updatedProduct : p));
 
       // Registrar movimiento

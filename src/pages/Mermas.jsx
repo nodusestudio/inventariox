@@ -102,7 +102,15 @@ export default function Mermas({ language = 'es', user }) {
 
       // Actualizar stock del producto (restar)
       const newStock = product.stockActual - parseInt(formData.cantidad);
-      await updateProduct(formData.productoId, { stockActual: newStock });
+      await updateProduct(formData.productoId, { 
+        stockActual: newStock,
+        nombre: product.nombre || '',
+        proveedor: product.proveedor || '',
+        unidad: product.unidad || '',
+        costo: Number(product.costo) || 0,
+        stockMinimo: Number(product.stockMinimo) || 0,
+        stockCompra: Number(product.stockCompra) || 0
+      });
 
       // Actualizar UI
       setMermas([{ id: mermaId, ...newMerma }, ...mermas]);

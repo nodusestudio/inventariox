@@ -48,8 +48,25 @@ export const getProducts = async (userId) => {
 
 export const updateProduct = async (docId, productData) => {
   try {
+    // Sanitizar datos antes de enviar a Firebase
+    const sanitizedData = {
+      nombre: (productData.nombre || '').toString().trim(),
+      proveedor: (productData.proveedor || '').toString().trim(),
+      unidad: (productData.unidad || '').toString().trim(),
+      costo: Number(productData.costo) || 0,
+      stockActual: Number(productData.stockActual) || 0,
+      stockMinimo: Number(productData.stockMinimo) || 0,
+      stockCompra: Number(productData.stockCompra) || 0,
+      updatedAt: Timestamp.now()
+    };
+
+    // Validar que los campos requeridos no estén vacíos
+    if (!sanitizedData.nombre || !sanitizedData.proveedor) {
+      throw new Error('Nombre y proveedor son obligatorios');
+    }
+
     const productRef = doc(db, 'products', docId);
-    await updateDoc(productRef, productData);
+    await updateDoc(productRef, sanitizedData);
   } catch (error) {
     console.error('Error updating product:', error);
     throw error;
