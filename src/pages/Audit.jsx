@@ -1,24 +1,44 @@
 import { useState, useEffect } from 'react';
-import { ClipboardCheck, Save, AlertCircle, CheckCircle, TrendingDown, DollarSign } from 'lucide-react';
-import { subscribeToProducts, addAuditLog, updateProduct, addMerma, addMovement } from '../services/firebaseService';
+import { ClipboardCheck, Lock, AlertTriangle, Check } from 'lucide-react';
+import { subscribeToProducts, addInventoryLog, updateProduct, addMerma, getTodayInventoryLog } from '../services/firebaseService';
 import { toast } from 'react-hot-toast';
-import ConfirmationModal from '../components/ConfirmationModal';
+import { Timestamp } from 'firebase/firestore';
+import { useSettings } from '../hooks/useSettings';
 
 export default function Audit({ language = 'es', user }) {
   const [products, setProducts] = useState([]);
   const [auditData, setAuditData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [employeeName, setEmployeeName] = useState('');
-  const [auditType, setAuditType] = useState('diario'); // 'diario', 'semanal', 'mensual'
-  const [confirmClose, setConfirmClose] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [responsable, setResponsable] = useState('');
+  const [sede, setSede] = useState('direccion1'); // 'direccion1' o 'direccion2'
+  const [todayInventory, setTodayInventory] = useState(null);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const { settings } = useSettings(user?.uid);
+  const companyData = settings || {};
+
+  // 🔥 Verificar si ya existe un cierre de hoy
+  useEffect(() => {
+    const checkTodayInventory = async () => {
+      if (!user) return;
+      
+      const todayLog = await getTodayInventoryLog(user.uid);
+      if (todayLog) {
+        setTodayInventory(todayLog);
+        setIsBlocked(true);
+        toast.success('✅ Ya existe un inventario registrado para hoy');
+      }
+    };
+
+    checkTodayInventory();
+  }, [user]);
 
   // 🔥 REACTIVIDAD: Cargar productos en tiempo real
   useEffect(() => {
     if (!user) return;
 
     const unsubscribe = subscribeToProducts(user.uid, (productsData) => {
-      console.log('🔄 Productos cargados para auditoría:', productsData.length);
+      console.log('🔄 Productos cargados para inventario:', productsData.length);
       setProducts(productsData);
       
       // Inicializar auditData con stock actual
@@ -26,9 +46,12 @@ export default function Audit({ language = 'es', user }) {
         id: p.id,
         nombre: p.nombre,
         stockSistema: p.stockActual || 0,
-        stockFisico: p.stockActual || 0, // Inicialmente igual al sistema
+        conteoReal: p.stockActual || 0, // Inicialmente igual al sistema
         costo: p.costo || 0,
-        unidad: p.unidad || 'UNIDADES'
+        unidad: p.unidad || 'UNIDADES',
+        proveedor: p.proveedor || '',
+        stockMinimo: p.stockMinimo || 0,
+        stockCompra: p.stockCompra || 0
       }));
       setAuditData(initialAuditData);
       setLoading(false);
@@ -49,139 +72,95 @@ export default function Audit({ language = 'es', user }) {
     }).format(value);
   };
 
-  // Actualizar stock físico
-  const handleStockChange = (productId, newStockFisico) => {
-    setAuditData(prev => prev.map(item => 
-      item.id === productId 
-        ? { ...item, stockFisico: Number(newStockFisico) || 0 }
-        : item
-    ));
+  const handleCountChange = (productId, newCount) => {
+    setAuditData(prev =>
+      prev.map(item =>
+        item.id === productId
+          ? { ...item, conteoReal: Number(newCount) || 0 }
+          : item
+      )
+    );
   };
 
-  // 🔥 LÓGICA DE CUADRE: Calcular diferencia y valor monetario
-  const calculateDifference = (item) => {
-    const diferencia = item.stockFisico - item.stockSistema;
-    const valorMonetario = diferencia * item.costo;
-    
-    return {
-      diferencia,
-      valorMonetario,
-      tipo: diferencia === 0 ? 'correcto' : diferencia > 0 ? 'sobrante' : 'faltante'
-    };
-  };
-
-  // Calcular totales
-  const calculateTotals = () => {
-    let totalFaltantes = 0;
-    let totalSobrantes = 0;
-    let valorFaltantes = 0;
-    let valorSobrantes = 0;
-
-    auditData.forEach(item => {
-      const { diferencia, valorMonetario } = calculateDifference(item);
-      
-      if (diferencia < 0) {
-        totalFaltantes += Math.abs(diferencia);
-        valorFaltantes += Math.abs(valorMonetario);
-      } else if (diferencia > 0) {
-        totalSobrantes += diferencia;
-        valorSobrantes += valorMonetario;
-      }
-    });
-
-    return { totalFaltantes, totalSobrantes, valorFaltantes, valorSobrantes };
-  };
-
-  // 🔥 CIERRE DE INVENTARIO: handleCloseAudit
-  const handleCloseAudit = async () => {
-    if (!employeeName.trim()) {
-      toast.error('❌ Debes ingresar el nombre del empleado');
+  const handleFinalizarInventario = async () => {
+    // Validaciones
+    if (!responsable.trim()) {
+      toast.error('❌ Debe ingresar el nombre del responsable');
+      return;
+    }
+    if (!sede) {
+      toast.error('❌ Debe seleccionar una sede');
       return;
     }
 
-    setIsClosing(true);
     try {
-      const totals = calculateTotals();
-      const now = new Date();
+      setSaving(true);
 
-      // 1️⃣ Registrar fecha, hora exacta y nombre del empleado en audit_logs
-      const auditLogData = {
-        employeeName: employeeName.trim(),
-        auditType: auditType,
-        fecha: now.toISOString().split('T')[0],
-        hora: now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        timestamp: now.toISOString(),
-        items: auditData.map(item => ({
-          ...item,
-          ...calculateDifference(item)
-        })),
-        totals: {
-          totalFaltantes: totals.totalFaltantes,
-          totalSobrantes: totals.totalSobrantes,
-          valorFaltantes: totals.valorFaltantes,
-          valorSobrantes: totals.valorSobrantes
-        }
+      // Calcular detalle con diferencias
+      const detalle = auditData.map(item => ({
+        producto: item.nombre,
+        stockSistema: item.stockSistema,
+        conteoReal: item.conteoReal,
+        diferencia: item.conteoReal - item.stockSistema,
+        valorDiferencia: (item.conteoReal - item.stockSistema) * item.costo,
+        unidad: item.unidad,
+        costo: item.costo
+      }));
+
+      // Crear registro de inventario diario
+      const sedeNombre = sede === 'direccion1' ? (companyData?.direccion || 'Sede 1') : (companyData?.direccion2 || 'Sede 2');
+      
+      const inventoryLog = {
+        fecha_hora: Timestamp.now(),
+        responsable: responsable.trim(),
+        sede: sedeNombre,
+        totalProductos: auditData.length,
+        totalDiferencias: detalle.reduce((sum, d) => sum + Math.abs(d.diferencia), 0),
+        valorTotalDiferencias: detalle.reduce((sum, d) => sum + Math.abs(d.valorDiferencia), 0),
+        detalle,
+        usuario: user.email
       };
 
-      const auditLogId = await addAuditLog(user.uid, auditLogData);
-      console.log('✅ Audit log creado:', auditLogId);
+      await addInventoryLog(user.uid, inventoryLog);
 
-      // 2️⃣ Actualizar stock en products y generar movimientos/mermas
-      const updatePromises = auditData.map(async (item) => {
-        const { diferencia, tipo } = calculateDifference(item);
-
-        if (diferencia !== 0) {
-          // Actualizar stock en products para que coincida con conteo físico
-          await updateProduct(item.id, { 
-            stockActual: item.stockFisico,
-            nombre: item.nombre,
-            proveedor: products.find(p => p.id === item.id)?.proveedor || '',
-            unidad: item.unidad,
-            costo: item.costo,
-            stockMinimo: products.find(p => p.id === item.id)?.stockMinimo || 0,
-            stockCompra: products.find(p => p.id === item.id)?.stockCompra || 0
-          });
-
-          // 3️⃣ Si hubo faltantes, registrar en mermas
-          if (tipo === 'faltante') {
-            await addMerma(user.uid, {
-              productoId: item.id,
-              productoNombre: item.nombre,
-              cantidad: Math.abs(diferencia),
-              motivo: 'Ajuste por auditoría',
-              observaciones: `Auditoría ${auditType} realizada por ${employeeName}. Diferencia detectada: ${diferencia}`,
-              costo: item.costo,
-              valorTotal: Math.abs(diferencia * item.costo),
-              fecha: now.toISOString().split('T')[0]
-            });
-          }
-
-          // Registrar movimiento de ajuste
-          await addMovement(user.uid, {
-            tipo: 'Ajuste',
-            productoId: item.id,
-            productoNombre: item.nombre,
-            cantidad: Math.abs(diferencia),
-            stockAnterior: item.stockSistema,
-            stockNuevo: item.stockFisico,
-            motivo: tipo === 'faltante' ? 'Ajuste negativo por auditoría' : 'Ajuste positivo por auditoría',
-            empleado: employeeName,
-            auditLogId: auditLogId
-          });
-        }
-      });
-
+      // Actualizar todos los productos con el conteo real
+      const updatePromises = auditData.map(item =>
+        updateProduct(user.uid, item.id, {
+          stockActual: item.conteoReal
+        })
+      );
       await Promise.all(updatePromises);
 
-      toast.success('✅ Auditoría cerrada exitosamente');
-      setConfirmClose(false);
-      setEmployeeName('');
+      // Crear mermas para faltantes
+      const mermasPromises = detalle
+        .filter(d => d.diferencia < 0)
+        .map(d => {
+          const mermaData = {
+            producto: d.producto,
+            cantidad: Math.abs(d.diferencia),
+            unidad: d.unidad,
+            valorPerdida: Math.abs(d.valorDiferencia),
+            razon: 'Inventario Diario de Cierre',
+            detalles: `Faltante detectado por ${responsable} en ${sedeNombre} (Stock Sistema: ${d.stockSistema}, Conteo Real: ${d.conteoReal})`,
+            tipo: 'INVENTARIO_CIERRE',
+            fecha: Timestamp.now(),
+            usuario: user.email
+          };
+          return addMerma(user.uid, mermaData);
+        });
+      await Promise.all(mermasPromises);
+
+      toast.success(`✅ Inventario de cierre registrado correctamente por ${responsable}`);
+      
+      // Bloquear para evitar doble registro
+      setIsBlocked(true);
+      setTodayInventory(inventoryLog);
       
     } catch (error) {
-      console.error('Error closing audit:', error);
-      toast.error('❌ Error al cerrar la auditoría: ' + (error.message || 'Error desconocido'));
+      console.error('Error al finalizar inventario:', error);
+      toast.error('❌ Error al registrar el inventario');
     } finally {
-      setIsClosing(false);
+      setSaving(false);
     }
   };
 
@@ -193,6 +172,65 @@ export default function Audit({ language = 'es', user }) {
     );
   }
 
+  // Si ya está bloqueado, mostrar mensaje
+  if (isBlocked && todayInventory) {
+    return (
+      <div className="min-h-screen bg-[#111827] light-mode:bg-gray-50 p-4 sm:p-6 lg:p-8 transition-colors duration-300">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-[#1f2937] light-mode:bg-white rounded-lg p-8 shadow-lg border border-gray-700 light-mode:border-gray-200 text-center">
+            <Lock className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+            <h2 className="text-2xl font-bold text-white light-mode:text-gray-900 mb-2">
+              Inventario de Cierre Ya Registrado
+            </h2>
+            <p className="text-gray-400 light-mode:text-gray-600 mb-4">
+              Ya se ha realizado el inventario de cierre para el día de hoy.
+            </p>
+            <div className="bg-[#374151] light-mode:bg-gray-100 rounded-lg p-4 mt-4">
+              <p className="text-sm text-gray-300 light-mode:text-gray-700">
+                <strong>Responsable:</strong> {todayInventory.responsable}
+              </p>
+              <p className="text-sm text-gray-300 light-mode:text-gray-700">
+                <strong>Sede:</strong> {todayInventory.sede}
+              </p>
+              <p className="text-sm text-gray-300 light-mode:text-gray-700">
+                <strong>Hora:</strong> {todayInventory.fecha_hora?.toDate().toLocaleString('es-CL')}
+              </p>
+              <p className="text-sm text-gray-300 light-mode:text-gray-700">
+                <strong>Total Productos:</strong> {todayInventory.totalProductos}
+              </p>
+            </div>
+            <p className="text-xs text-gray-500 light-mode:text-gray-500 mt-4">
+              El inventario de cierre puede realizarse una vez por día.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Calcular totales para mostrar en la tabla
+  const calculateTotals = () => {
+    let totalFaltantes = 0;
+    let totalSobrantes = 0;
+    let valorFaltantes = 0;
+    let valorSobrantes = 0;
+
+    auditData.forEach(item => {
+      const diferencia = item.conteoReal - item.stockSistema;
+      const valorDiferencia = diferencia * item.costo;
+      
+      if (diferencia < 0) {
+        totalFaltantes += Math.abs(diferencia);
+        valorFaltantes += Math.abs(valorDiferencia);
+      } else if (diferencia > 0) {
+        totalSobrantes += diferencia;
+        valorSobrantes += valorDiferencia;
+      }
+    });
+
+    return { totalFaltantes, totalSobrantes, valorFaltantes, valorSobrantes };
+  };
+
   const totals = calculateTotals();
 
   return (
@@ -203,172 +241,169 @@ export default function Audit({ language = 'es', user }) {
           <ClipboardCheck className="w-8 h-8 text-[#206DDA]" />
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-white light-mode:text-gray-900">
-              Auditoría de Inventario
+              Inventario Diario de Cierre
             </h1>
             <p className="text-sm text-gray-400 light-mode:text-gray-600">
-              Conteo físico y cuadre de stock
+              Conteo físico diario y cuadre de stock
             </p>
           </div>
         </div>
       </div>
 
-      {/* Configuración de auditoría */}
+      {/* Encabezado: Responsable y Sede */}
       <div className="bg-[#1f2937] light-mode:bg-white rounded-lg p-6 mb-6 shadow-lg border border-gray-700 light-mode:border-gray-200">
         <h2 className="text-lg font-bold text-white light-mode:text-gray-900 mb-4">
-          Configuración
+          📋 Datos del Inventario
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 light-mode:text-gray-700 mb-2">
-              Tipo de Auditoría
-            </label>
-            <select
-              value={auditType}
-              onChange={(e) => setAuditType(e.target.value)}
-              className="w-full bg-[#111827] light-mode:bg-gray-50 text-white light-mode:text-gray-900 border border-gray-600 light-mode:border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#206DDA]"
-            >
-              <option value="diario">Diario</option>
-              <option value="semanal">Semanal</option>
-              <option value="mensual">Mensual</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 light-mode:text-gray-700 mb-2">
-              Nombre del Empleado *
+              Responsable *
             </label>
             <input
               type="text"
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              placeholder="Ej: Juan Pérez"
-              className="w-full bg-[#111827] light-mode:bg-gray-50 text-white light-mode:text-gray-900 border border-gray-600 light-mode:border-gray-300 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#206DDA]"
+              value={responsable}
+              onChange={(e) => setResponsable(e.target.value)}
+              placeholder="Nombre completo del responsable"
+              className="w-full px-4 py-2 bg-[#374151] light-mode:bg-gray-50 text-white light-mode:text-gray-900 rounded-lg border border-gray-600 light-mode:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#206DDA]"
             />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-300 light-mode:text-gray-700 mb-2">
+              Sede *
+            </label>
+            <select
+              value={sede}
+              onChange={(e) => setSede(e.target.value)}
+              className="w-full px-4 py-2 bg-[#374151] light-mode:bg-gray-50 text-white light-mode:text-gray-900 rounded-lg border border-gray-600 light-mode:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#206DDA]"
+            >
+              <option value="direccion1">{companyData?.direccion || 'Sede 1'}</option>
+              {companyData?.direccion2 && (
+                <option value="direccion2">{companyData.direccion2}</option>
+              )}
+            </select>
           </div>
         </div>
       </div>
 
-      {/* Resumen de diferencias */}
+      {/* Resumen de Diferencias */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+        <div className="bg-[#1f2937] light-mode:bg-white rounded-lg p-4 shadow-lg border border-gray-700 light-mode:border-gray-200">
           <div className="flex items-center gap-2 mb-2">
-            <TrendingDown className="w-5 h-5 text-red-400" />
-            <p className="text-sm font-medium text-red-400">Faltantes</p>
+            <AlertTriangle className="w-5 h-5 text-red-500" />
+            <p className="text-sm text-gray-400 light-mode:text-gray-600">Faltantes</p>
           </div>
-          <p className="text-2xl font-bold text-red-300">{totals.totalFaltantes}</p>
-          <p className="text-xs text-red-400 mt-1">${formatCurrency(totals.valorFaltantes)}</p>
+          <p className="text-2xl font-bold text-white light-mode:text-gray-900">
+            {totals.totalFaltantes.toFixed(1)}
+          </p>
+          <p className="text-xs text-red-400 light-mode:text-red-600">
+            ${formatCurrency(totals.valorFaltantes)}
+          </p>
         </div>
 
-        <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+        <div className="bg-[#1f2937] light-mode:bg-white rounded-lg p-4 shadow-lg border border-gray-700 light-mode:border-gray-200">
           <div className="flex items-center gap-2 mb-2">
-            <CheckCircle className="w-5 h-5 text-green-400" />
-            <p className="text-sm font-medium text-green-400">Sobrantes</p>
+            <Check className="w-5 h-5 text-green-500" />
+            <p className="text-sm text-gray-400 light-mode:text-gray-600">Sobrantes</p>
           </div>
-          <p className="text-2xl font-bold text-green-300">{totals.totalSobrantes}</p>
-          <p className="text-xs text-green-400 mt-1">${formatCurrency(totals.valorSobrantes)}</p>
+          <p className="text-2xl font-bold text-white light-mode:text-gray-900">
+            {totals.totalSobrantes.toFixed(1)}
+          </p>
+          <p className="text-xs text-green-400 light-mode:text-green-600">
+            ${formatCurrency(totals.valorSobrantes)}
+          </p>
         </div>
 
-        <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <DollarSign className="w-5 h-5 text-blue-400" />
-            <p className="text-sm font-medium text-blue-400">Diferencia Neta</p>
-          </div>
-          <p className={`text-2xl font-bold ${totals.valorSobrantes - totals.valorFaltantes >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+        <div className="bg-[#1f2937] light-mode:bg-white rounded-lg p-4 shadow-lg border border-gray-700 light-mode:border-gray-200">
+          <p className="text-sm text-gray-400 light-mode:text-gray-600 mb-2">Total Productos</p>
+          <p className="text-2xl font-bold text-white light-mode:text-gray-900">
+            {auditData.length}
+          </p>
+        </div>
+
+        <div className="bg-[#1f2937] light-mode:bg-white rounded-lg p-4 shadow-lg border border-gray-700 light-mode:border-gray-200">
+          <p className="text-sm text-gray-400 light-mode:text-gray-600 mb-2">Diferencia Neta</p>
+          <p className={`text-2xl font-bold ${
+            totals.valorSobrantes - totals.valorFaltantes >= 0 
+              ? 'text-green-400 light-mode:text-green-600' 
+              : 'text-red-400 light-mode:text-red-600'
+          }`}>
             ${formatCurrency(totals.valorSobrantes - totals.valorFaltantes)}
           </p>
         </div>
-
-        <div className="bg-[#1f2937] light-mode:bg-white border border-gray-700 light-mode:border-gray-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertCircle className="w-5 h-5 text-yellow-400" />
-            <p className="text-sm font-medium text-gray-300 light-mode:text-gray-700">Productos con Diferencia</p>
-          </div>
-          <p className="text-2xl font-bold text-white light-mode:text-gray-900">
-            {auditData.filter(item => calculateDifference(item).diferencia !== 0).length}
-          </p>
-        </div>
       </div>
 
-      {/* Tabla de auditoría */}
+      {/* Tabla de Inventario */}
       <div className="bg-[#1f2937] light-mode:bg-white rounded-lg shadow-lg border border-gray-700 light-mode:border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-[#111827] light-mode:bg-gray-100 border-b border-gray-700 light-mode:border-gray-300">
+            <thead className="bg-[#374151] light-mode:bg-gray-100">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
                   Producto
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
                   Stock Sistema
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
-                  Stock Físico
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
+                  Conteo Real
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
                   Diferencia
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
-                  Valor
-                </th>
-                <th className="px-4 py-3 text-center text-xs font-bold text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
-                  Estado
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-300 light-mode:text-gray-700 uppercase tracking-wider">
+                  Valor Diferencia
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700 light-mode:divide-gray-200">
               {auditData.map((item) => {
-                const { diferencia, valorMonetario, tipo } = calculateDifference(item);
+                const diferencia = item.conteoReal - item.stockSistema;
+                const valorDiferencia = diferencia * item.costo;
                 
                 return (
-                  <tr key={item.id} className="hover:bg-[#111827] light-mode:hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-sm text-white light-mode:text-gray-900 font-medium">
-                      {item.nombre}
-                      <br />
-                      <span className="text-xs text-gray-400 light-mode:text-gray-600">
-                        ${formatCurrency(item.costo)} / {item.unidad.toLowerCase()}
-                      </span>
+                  <tr key={item.id} className="hover:bg-[#374151] light-mode:hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm text-white light-mode:text-gray-900">
+                      <div>
+                        <p className="font-medium">{item.nombre}</p>
+                        <p className="text-xs text-gray-400 light-mode:text-gray-500">
+                          {item.unidad}
+                        </p>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-center text-gray-300 light-mode:text-gray-700">
-                      {item.stockSistema}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-center">
-                      <input
-                        type="number"
-                        inputMode="numeric"
-                        value={item.stockFisico}
-                        onChange={(e) => handleStockChange(item.id, e.target.value)}
-                        className="w-20 bg-[#111827] light-mode:bg-gray-50 text-white light-mode:text-gray-900 border border-gray-600 light-mode:border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-[#206DDA]"
-                      />
-                    </td>
-                    <td className={`px-4 py-3 text-sm text-center font-bold ${
-                      diferencia === 0 ? 'text-gray-400' : diferencia > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {diferencia > 0 ? '+' : ''}{diferencia}
-                    </td>
-                    <td className={`px-4 py-3 text-sm text-right font-bold ${
-                      valorMonetario === 0 ? 'text-gray-400' : valorMonetario > 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {valorMonetario > 0 ? '+' : ''}${formatCurrency(valorMonetario)}
+                    <td className="px-4 py-3 text-center text-sm text-gray-300 light-mode:text-gray-700">
+                      {item.stockSistema.toFixed(1)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {tipo === 'correcto' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-900/30 text-green-400 text-xs font-medium rounded">
-                          <CheckCircle className="w-3 h-3" />
-                          OK
-                        </span>
-                      )}
-                      {tipo === 'faltante' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-900/30 text-red-400 text-xs font-medium rounded">
-                          <TrendingDown className="w-3 h-3" />
-                          Faltante
-                        </span>
-                      )}
-                      {tipo === 'sobrante' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-900/30 text-green-400 text-xs font-medium rounded">
-                          ↑ Sobrante
-                        </span>
-                      )}
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={item.conteoReal}
+                        onChange={(e) => handleCountChange(item.id, e.target.value)}
+                        className="w-24 px-2 py-1 bg-[#374151] light-mode:bg-gray-50 text-white light-mode:text-gray-900 rounded border border-gray-600 light-mode:border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#206DDA] text-center"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        diferencia === 0 
+                          ? 'bg-gray-600 light-mode:bg-gray-200 text-gray-300 light-mode:text-gray-700'
+                          : diferencia > 0
+                          ? 'bg-green-900/50 light-mode:bg-green-100 text-green-400 light-mode:text-green-700'
+                          : 'bg-red-900/50 light-mode:bg-red-100 text-red-400 light-mode:text-red-700'
+                      }`}>
+                        {diferencia > 0 ? '+' : ''}{diferencia.toFixed(1)}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-3 text-right text-sm font-medium ${
+                      valorDiferencia === 0 
+                        ? 'text-gray-400 light-mode:text-gray-600'
+                        : valorDiferencia > 0
+                        ? 'text-green-400 light-mode:text-green-600'
+                        : 'text-red-400 light-mode:text-red-600'
+                    }`}>
+                      ${formatCurrency(Math.abs(valorDiferencia))}
                     </td>
                   </tr>
                 );
@@ -378,29 +413,24 @@ export default function Audit({ language = 'es', user }) {
         </div>
       </div>
 
-      {/* Botón de cierre */}
+      {/* Botón de Finalizar */}
       <div className="mt-6 flex justify-end">
         <button
-          onClick={() => setConfirmClose(true)}
-          disabled={!employeeName.trim() || isClosing}
-          className="flex items-center gap-2 bg-[#206DDA] hover:bg-blue-600 text-white px-6 py-3 rounded-lg font-bold transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={handleFinalizarInventario}
+          disabled={saving || !responsable.trim()}
+          className={`px-8 py-3 rounded-lg font-semibold text-white transition-all ${
+            saving || !responsable.trim()
+              ? 'bg-gray-600 cursor-not-allowed'
+              : 'bg-[#206DDA] hover:bg-[#1557b0] shadow-lg hover:shadow-xl'
+          }`}
         >
-          <Save className="w-5 h-5" />
-          {isClosing ? 'Cerrando...' : 'Cerrar Auditoría'}
+          {saving ? 'Registrando...' : '✅ Finalizar y Registrar Cierre'}
         </button>
       </div>
 
-      {/* Modal de confirmación */}
-      <ConfirmationModal
-        isOpen={confirmClose}
-        title="¿Cerrar auditoría?"
-        message={`Se actualizará el stock de ${auditData.filter(item => calculateDifference(item).diferencia !== 0).length} productos y se registrarán ${totals.totalFaltantes > 0 ? 'las mermas detectadas' : 'los ajustes'}. Esta acción no se puede deshacer.`}
-        onConfirm={handleCloseAudit}
-        onCancel={() => setConfirmClose(false)}
-        confirmText="Cerrar Auditoría"
-        cancelText="Cancelar"
-        isDangerous={false}
-      />
+      <p className="text-xs text-gray-500 light-mode:text-gray-500 text-center mt-4">
+        * Todos los campos son obligatorios. El inventario se registrará una sola vez por día.
+      </p>
     </div>
   );
 }
