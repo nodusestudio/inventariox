@@ -120,7 +120,8 @@ export default function Stock({
     costo: '',
     stockActual: '0',
     stockMinimo: '1',
-    stockCompra: '10'
+    stockCompra: '10',
+    frecuenciaInventario: 'ninguna'
   });
 
   // Filtrar datos por proveedor y búsqueda
@@ -139,7 +140,8 @@ export default function Stock({
       costo: '',
       stockActual: '0',
       stockMinimo: '1',
-      stockCompra: '10'
+      stockCompra: '10',
+      frecuenciaInventario: 'ninguna'
     });
     setIsEditing(false);
     setEditingId(null);
@@ -155,7 +157,8 @@ export default function Stock({
       costo: product.costo,
       stockActual: product.stockActual?.toString() || '0',
       stockMinimo: product.stockMinimo?.toString() || '1',
-      stockCompra: product.stockCompra?.toString() || '10'
+      stockCompra: product.stockCompra?.toString() || '10',
+      frecuenciaInventario: product.frecuenciaInventario || 'ninguna'
     });
     setIsEditing(true);
     setEditingId(product.id);
@@ -214,6 +217,7 @@ export default function Stock({
       unidad: (formData.unidad || 'UNIDADES').trim().toUpperCase(),
       costo: Number(formData.costo) || 0,
       stockActual: Number(formData.stockActual) || 0,
+      frecuenciaInventario: formData.frecuenciaInventario || 'ninguna',
       stockMinimo: Number(formData.stockMinimo) || 0,
       stockCompra: Number(formData.stockCompra) || 0
     };
@@ -705,7 +709,26 @@ export default function Stock({
                     min="0"
                   />
                 </div>
-              </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-300 light-mode:text-gray-700 mb-2">
+                    {language === 'es' ? 'Frecuencia de Inventario' : 'Inventory Frequency'}
+                  </label>
+                  <select
+                    name="frecuenciaInventario"
+                    value={formData.frecuenciaInventario}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
+                  >
+                    <option value="ninguna">{language === 'es' ? 'Ninguna' : 'None'}</option>
+                    <option value="diaria">{language === 'es' ? 'Diaria' : 'Daily'}</option>
+                    <option value="semanal">{language === 'es' ? 'Semanal' : 'Weekly'}</option>
+                  </select>
+                  <p className="text-xs text-gray-400 light-mode:text-gray-500 mt-1">
+                    {language === 'es' 
+                      ? 'Alerta en el Dashboard si no se hace inventario según la frecuencia'
+                      : 'Alert on Dashboard if inventory is not done according to frequency'}
+                  </p>
+                </div>              </div>
             </div>
 
             <div className="p-6 border-t border-gray-700 light-mode:border-gray-200 flex flex-col md:flex-row gap-3 justify-end">

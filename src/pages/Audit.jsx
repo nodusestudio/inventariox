@@ -123,7 +123,7 @@ export default function Audit({ language = 'es', user }) {
 
       await addInventoryLog(user.uid, inventoryLog);
 
-      // Actualizar todos los productos con el conteo real
+      // ✅ Actualizar todos los productos con el conteo real
       const updatePromises = auditData.map(item =>
         updateProduct(user.uid, item.id, {
           stockActual: item.conteoReal

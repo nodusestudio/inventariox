@@ -1,9 +1,9 @@
-import { Package, TrendingUp, AlertCircle, AlertTriangle, CheckCircle, DollarSign, AlertOctagon, Boxes, ClipboardCheck } from 'lucide-react';
+import { Package, TrendingUp, AlertCircle, AlertTriangle, CheckCircle, DollarSign, AlertOctagon, Boxes, ClipboardCheck, Bell } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import MetricCard from '../components/MetricCard';
 import TableContainer from '../components/TableContainer';
 import { t } from '../utils/translations';
-import { subscribeToAuditLogs } from '../services/firebaseService';
+import { subscribeToAuditLogs, subscribeToInventoryLogs, subscribeToProducts } from '../services/firebaseService';
 
 // Formato moneda local sin decimales
 const formatCLP = (value) => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(value || 0);
@@ -12,40 +12,128 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
   const [alertProducts, setAlertProducts] = useState([]);
   const [selectedProvider, setSelectedProvider] = useState('');
   const [auditLogs, setAuditLogs] = useState([]);
+  const [inventoryLogs, setInventoryLogs] = useState([]);
   const [lastAuditDays, setLastAuditDays] = useState(null);
+  const [lastInventoryDays, setLastInventoryDays] = useState(null);
+  const [productsWithFrequency, setProductsWithFrequency] = useState([]);
+  const [pendingInventoryAlerts, setPendingInventoryAlerts] = useState([]);
 
-  // 🔥 Suscribirse a audit_logs para mostrar última auditoría
+  // 🔥 Suscribirse a inventory_logs para mostrar última fecha de inventario
   useEffect(() => {
     if (!user) return;
 
-    const unsubscribe = subscribeToAuditLogs(user.uid, (logs) => {
-      setAuditLogs(logs);
+    const unsubscribe = subscribeToInventoryLogs(user.uid, (logs) => {
+      setInventoryLogs(logs);
       
       if (logs.length > 0) {
-        // Obtener la auditoría más reciente
+        // Obtener el inventario más reciente
         const sortedLogs = [...logs].sort((a, b) => {
-          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.timestamp || 0);
-          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.timestamp || 0);
+          const dateA = a.fecha_hora?.toDate ? a.fecha_hora.toDate() : new Date(a.createdAt?.toDate() || 0);
+          const dateB = b.fecha_hora?.toDate ? b.fecha_hora.toDate() : new Date(b.createdAt?.toDate() || 0);
           return dateB - dateA;
         });
         
-        const lastAudit = sortedLogs[0];
-        const lastAuditDate = lastAudit.createdAt?.toDate ? lastAudit.createdAt.toDate() : new Date(lastAudit.timestamp);
+        const lastInventory = sortedLogs[0];
+        const lastInventoryDate = lastInventory.fecha_hora?.toDate 
+          ? lastInventory.fecha_hora.toDate() 
+          : new Date(lastInventory.createdAt?.toDate());
         const today = new Date();
-        const diffTime = Math.abs(today - lastAuditDate);
+        const diffTime = Math.abs(today - lastInventoryDate);
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
-        setLastAuditDays(diffDays);
+        setLastInventoryDays(diffDays);
       } else {
-        setLastAuditDays(null);
+        setLastInventoryDays(null);
       }
     });
 
     return () => {
-      console.log('📤 Desuscribiéndose de audit_logs (Dashboard)');
+      console.log('📤 Desuscribiéndose de inventory_logs (Dashboard)');
       unsubscribe();
     };
   }, [user]);
+
+  // 🔥 Suscribirse a productos para verificar frecuencias de inventario
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToProducts(user.uid, (products) => {
+      const productsWithFreq = products.filter(p => p.frecuenciaInventario && p.frecuenciaInventario !== 'ninguna');
+      setProductsWithFrequency(productsWithFreq);
+      
+      // Verificar alertas de inventario pendiente
+      const alerts = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Agrupar por proveedor
+      const byProvider = productsWithFreq.reduce((acc, prod) => {
+        if (!acc[prod.proveedor]) {
+          acc[prod.proveedor] = {
+            proveedor: prod.proveedor,
+            productos: [],
+            frecuencia: prod.frecuenciaInventario
+          };
+        }
+        acc[prod.proveedor].productos.push(prod.nombre);
+        return acc;
+      }, {});
+      
+      // Verificar si hay inventario de hoy
+      const hasInventoryToday = inventoryLogs.some(log => {
+        const logDate = log.fecha_hora?.toDate 
+          ? log.fecha_hora.toDate() 
+          : new Date(log.createdAt?.toDate());
+        logDate.setHours(0, 0, 0, 0);
+        return logDate.getTime() === today.getTime();
+      });
+      
+      // Si no hay inventario hoy y hay productos con frecuencia diaria, alertar
+      if (!hasInventoryToday) {
+        Object.values(byProvider).forEach(item => {
+          if (item.frecuencia === 'diaria') {
+            alerts.push({
+              proveedor: item.proveedor,
+              productos: item.productos,
+              frecuencia: 'diaria',
+              mensaje: `No se ha registrado el inventario diario de ${item.proveedor}`
+            });
+          }
+        });
+      }
+      
+      // Verificar inventario semanal (si no hay inventario en los últimos 7 días)
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const hasInventoryThisWeek = inventoryLogs.some(log => {
+        const logDate = log.fecha_hora?.toDate 
+          ? log.fecha_hora.toDate() 
+          : new Date(log.createdAt?.toDate());
+        return logDate >= weekAgo;
+      });
+      
+      if (!hasInventoryThisWeek) {
+        Object.values(byProvider).forEach(item => {
+          if (item.frecuencia === 'semanal') {
+            alerts.push({
+              proveedor: item.proveedor,
+              productos: item.productos,
+              frecuencia: 'semanal',
+              mensaje: `No se ha registrado el inventario semanal de ${item.proveedor}`
+            });
+          }
+        });
+      }
+      
+      setPendingInventoryAlerts(alerts);
+    });
+
+    return () => {
+      console.log('📤 Desuscribiéndose de productos (Dashboard)');
+      unsubscribe();
+    };
+  }, [user, inventoryLogs]);
 
   // Función para calcular productos en estado crítico
   const calculateAlerts = () => {
@@ -267,6 +355,61 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
                   💡 Realiza tu primera auditoría para llevar un control profesional del inventario
                 </p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🔔 ALERTA: Inventario pendiente por frecuencia configurada */}
+        {pendingInventoryAlerts.length > 0 && (
+          <div className="mb-6 sm:mb-8 rounded-lg p-4 sm:p-6 border bg-orange-900/20 border-orange-700/40">
+            <div className="flex items-center gap-3 mb-4">
+              <Bell className="w-6 h-6 text-orange-500 flex-shrink-0 animate-pulse" />
+              <div>
+                <h3 className="text-lg font-bold text-orange-500">
+                  ⚠️ Inventario Pendiente
+                </h3>
+                <p className="text-sm text-gray-400 light-mode:text-gray-600 mt-1">
+                  Los siguientes proveedores tienen frecuencia de inventario configurada
+                </p>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              {pendingInventoryAlerts.map((alert, index) => (
+                <div
+                  key={index}
+                  className="bg-orange-950/30 border border-orange-700/30 rounded p-3 sm:p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <p className="font-semibold text-orange-400 text-sm sm:text-base">
+                        {alert.proveedor}
+                      </p>
+                      <p className="text-xs sm:text-sm text-orange-300/70 mt-1">
+                        {alert.mensaje}
+                      </p>
+                      <p className="text-xs text-orange-300/50 mt-2">
+                        Frecuencia: {alert.frecuencia === 'diaria' ? 'Diaria' : 'Semanal'}
+                      </p>
+                      <p className="text-xs text-orange-300/50">
+                        Productos afectados: {alert.productos.join(', ')}
+                      </p>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        alert.frecuencia === 'diaria'
+                          ? 'bg-red-900/50 text-red-400'
+                          : 'bg-yellow-900/50 text-yellow-400'
+                      }`}>
+                        {alert.frecuencia === 'diaria' ? '📅 Diaria' : '📆 Semanal'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <p className="text-xs sm:text-sm text-orange-300/60 mt-3 italic">
+                💡 Ve a la sección <strong>Inventario</strong> para registrar el conteo del día
+              </p>
             </div>
           </div>
         )}
