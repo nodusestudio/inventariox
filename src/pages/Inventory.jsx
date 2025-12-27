@@ -22,6 +22,8 @@ export default function Inventory({
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [todayLog, setTodayLog] = useState(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   // ============ VERIFICAR SI YA HAY CIERRE HOY ============
   useEffect(() => {
@@ -46,7 +48,8 @@ export default function Inventory({
         unidad: p.unidad,
         stockTeorico: p.stockActual || 0,
         stockFisico: '',
-        diferencia: 0
+        diferencia: 0,
+        observaciones: ''
       }));
       setInventoryData(initialData);
     } else {
@@ -75,6 +78,13 @@ export default function Inventory({
     }));
     
     setHasUnsavedChanges(true);
+  };
+
+  // ============ MANEJAR OBSERVACIONES ============
+  const handleObservacionesChange = (productId, value) => {
+    setInventoryData(prev => prev.map(item => 
+      item.id === productId ? { ...item, observaciones: value } : item
+    ));
   };
 
   // ============ GENERAR PDF CON JSPDF ============
@@ -109,13 +119,17 @@ export default function Inventory({
     doc.text(`Sede: ${selectedSede}`, 14, 66);
     
     // Estadísticas a la derecha
-    const descuadresTotal = data.filter(item => item.diferencia !== 0).length;
+    const totalSalidas = data.reduce((sum, item) => {
+      return sum + (item.diferencia < 0 ? Math.abs(item.diferencia) : 0);
+    }, 0);
+    const productosSalidas = data.filter(item => item.diferencia < 0).length;
+    
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(`Total Productos: ${data.length}`, pageWidth - 14, 52, { align: 'right' });
-    doc.text(`Descuadres: ${descuadresTotal}`, pageWidth - 14, 59, { align: 'right' });
-    doc.setTextColor(descuadresTotal === 0 ? [34, 139, 34] : [220, 53, 69]);
-    doc.text(`Estado: ${descuadresTotal === 0 ? 'CORRECTO ✓' : 'CON DIFERENCIAS ⚠️'}`, pageWidth - 14, 66, { align: 'right' });
+    doc.text(`Productos con Salidas: ${productosSalidas}`, pageWidth - 14, 59, { align: 'right' });
+    doc.setTextColor(totalSalidas > 0 ? [220, 53, 69] : [34, 139, 34]);
+    doc.text(`Total Unidades Salientes: ${totalSalidas}`, pageWidth - 14, 66, { align: 'right' });
     doc.setTextColor(0, 0, 0);
     
     // Separador
@@ -130,12 +144,12 @@ export default function Inventory({
       item.stockTeorico.toString(),
       item.stockFisico.toString(),
       item.diferencia.toString(),
-      item.diferencia !== 0 ? '⚠️' : '✓'
+      item.observaciones || '-'
     ]);
     
     doc.autoTable({
       startY: 75,
-      head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Diferencia', 'Estado']],
+      head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Salidas/Ventas', 'Observaciones']],
       body: tableData,
       theme: 'striped',
       headStyles: { 
@@ -153,15 +167,15 @@ export default function Inventory({
         fillColor: [245, 245, 245]
       },
       columnStyles: {
-        0: { cellWidth: 60 },
-        1: { cellWidth: 25, halign: 'center' },
-        2: { cellWidth: 28, halign: 'center' },
-        3: { cellWidth: 28, halign: 'center' },
+        0: { cellWidth: 50 },
+        1: { cellWidth: 20, halign: 'center' },
+        2: { cellWidth: 25, halign: 'center' },
+        3: { cellWidth: 25, halign: 'center' },
         4: { cellWidth: 25, halign: 'center' },
-        5: { cellWidth: 20, halign: 'center' }
+        5: { cellWidth: 40 }
       },
       didParseCell: function(data) {
-        // Resaltar diferencias
+        // Resaltar diferencias (Salidas en rojo, Entradas en verde)
         if (data.section === 'body' && data.column.index === 4) {
           const diff = parseFloat(data.cell.text[0]);
           if (diff !== 0) {
@@ -169,47 +183,47 @@ export default function Inventory({
             data.cell.styles.fontStyle = 'bold';
           }
         }
-        // Colorear el estado
-        if (data.section === 'body' && data.column.index === 5) {
-          const estado = data.cell.text[0];
-          if (estado === '⚠️') {
-            data.cell.styles.fillColor = [255, 243, 205];
-          } else {
-            data.cell.styles.fillColor = [212, 237, 218];
-          }
-        }
       }
     });
     
-    // Resumen de descuadres
+    // Resumen de salidas/ventas
     const finalY = doc.lastAutoTable.finalY + 10;
-    const descuadres = data.filter(item => item.diferencia !== 0);
+    const salidas = data.filter(item => item.diferencia < 0);
+    const totalUnidadesSalientes = salidas.reduce((sum, item) => sum + Math.abs(item.diferencia), 0);
     
-    if (descuadres.length > 0) {
+    if (salidas.length > 0) {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(220, 53, 69);
-      doc.text(`⚠️ DESCUADRES DETECTADOS: ${descuadres.length}`, 14, finalY);
+      doc.text(`📊 RESUMEN DE SALIDAS / VENTAS`, 14, finalY);
+      doc.text(`Total de Unidades Salientes: ${totalUnidadesSalientes}`, 14, finalY + 7);
       
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
       
-      let yPos = finalY + 8;
-      descuadres.forEach((item, idx) => {
+      let yPos = finalY + 15;
+      salidas.forEach((item, idx) => {
         if (yPos > 270) {
           doc.addPage();
           yPos = 20;
         }
-        const signo = item.diferencia > 0 ? '+' : '';
-        doc.text(`• ${item.nombre}: ${signo}${item.diferencia} ${item.unidad}`, 14, yPos);
+        doc.text(`• ${item.nombre}: ${Math.abs(item.diferencia)} ${item.unidad}`, 14, yPos);
+        if (item.observaciones) {
+          doc.setFontSize(8);
+          doc.setTextColor(100, 100, 100);
+          doc.text(`  Obs: ${item.observaciones}`, 14, yPos + 4);
+          doc.setFontSize(9);
+          doc.setTextColor(0, 0, 0);
+          yPos += 4;
+        }
         yPos += 6;
       });
     } else {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(34, 139, 34);
-      doc.text('✓ SIN DESCUADRES - INVENTARIO CORRECTO', 14, finalY);
+      doc.text('✓ SIN SALIDAS - STOCK COMPLETO', 14, finalY);
     }
     
     // Sección de firmas
@@ -284,6 +298,15 @@ export default function Inventory({
       return;
     }
 
+    // Generar PDF y mostrar vista previa
+    const doc = generatePDF(inventoryData);
+    setPreviewDoc(doc);
+    setShowPreview(true);
+    setShowConfirmClose(false);
+  };
+
+  // ============ CONFIRMAR Y GUARDAR DESPUÉS DE VISTA PREVIA ============
+  const handleConfirmAndSave = async () => {
     setIsProcessing(true);
     
     try {
@@ -298,9 +321,13 @@ export default function Inventory({
           unidad: item.unidad,
           stockTeorico: item.stockTeorico,
           stockFisico: parseFloat(item.stockFisico),
-          diferencia: item.diferencia
+          diferencia: item.diferencia,
+          observaciones: item.observaciones || ''
         })),
-        descuadres: inventoryData.filter(item => item.diferencia !== 0).length,
+        salidas: inventoryData.filter(item => item.diferencia < 0).length,
+        totalUnidadesSalientes: inventoryData.reduce((sum, item) => 
+          sum + (item.diferencia < 0 ? Math.abs(item.diferencia) : 0), 0
+        ),
         totalProductos: inventoryData.length
       };
 
@@ -315,10 +342,11 @@ export default function Inventory({
       });
       await Promise.all(updatePromises);
 
-      // Generar y descargar PDF
-      const doc = generatePDF(inventoryData);
-      const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(fileName);
+      // Descargar PDF
+      if (previewDoc) {
+        const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
+        previewDoc.save(fileName);
+      }
 
       // Limpiar formulario
       setSelectedProvider('');
@@ -327,7 +355,8 @@ export default function Inventory({
       setFilteredProducts([]);
       setInventoryData([]);
       setHasUnsavedChanges(false);
-      setShowConfirmClose(false);
+      setShowPreview(false);
+      setPreviewDoc(null);
 
       alert(language === 'es'
         ? '✓ Inventario cerrado correctamente.\n✓ Stock actualizado.\n✓ PDF descargado.'
@@ -343,8 +372,11 @@ export default function Inventory({
     }
   };
 
-  // ============ CONTAR DESCUADRES ============
-  const descuadresCount = inventoryData.filter(item => item.diferencia !== 0).length;
+  // ============ CONTAR SALIDAS ============
+  const salidasCount = inventoryData.filter(item => item.diferencia < 0).length;
+  const totalUnidadesSalientes = inventoryData.reduce((sum, item) => 
+    sum + (item.diferencia < 0 ? Math.abs(item.diferencia) : 0), 0
+  );
   const canClose = selectedProvider && selectedResponsible && selectedSede && 
                    inventoryData.length > 0 && 
                    !inventoryData.some(item => item.stockFisico === '');
@@ -453,10 +485,18 @@ export default function Inventory({
                 </div>
                 <div>
                   <span className="text-gray-400 light-mode:text-gray-600 text-sm">
-                    {language === 'es' ? 'Descuadres:' : 'Discrepancies:'}
+                    {language === 'es' ? 'Salidas/Ventas:' : 'Sales/Exits:'}
                   </span>
-                  <span className={`font-bold ml-2 ${descuadresCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {descuadresCount}
+                  <span className={`font-bold ml-2 ${salidasCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    {salidasCount}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-400 light-mode:text-gray-600 text-sm">
+                    {language === 'es' ? 'Total Unidades Salientes:' : 'Total Exit Units:'}
+                  </span>
+                  <span className={`font-bold ml-2 ${totalUnidadesSalientes > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    {totalUnidadesSalientes}
                   </span>
                 </div>
               </div>
@@ -497,7 +537,10 @@ export default function Inventory({
                     {language === 'es' ? 'Stock Físico' : 'Physical Stock'}
                   </th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300 light-mode:text-gray-700">
-                    {language === 'es' ? 'Diferencia' : 'Difference'}
+                    {language === 'es' ? 'Salidas/Ventas' : 'Sales/Exits'}
+                  </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-300 light-mode:text-gray-700">
+                    {language === 'es' ? 'Observaciones' : 'Notes'}
                   </th>
                 </tr>
               </thead>
@@ -540,8 +583,17 @@ export default function Inventory({
                             ? 'text-red-400 light-mode:text-red-600' 
                             : 'text-gray-400 light-mode:text-gray-600'
                       }`}>
-                        {item.diferencia > 0 ? '+' : ''}{item.diferencia}
+                        {item.diferencia < 0 ? Math.abs(item.diferencia) : '-'}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        value={item.observaciones}
+                        onChange={(e) => handleObservacionesChange(item.id, e.target.value)}
+                        placeholder={language === 'es' ? 'Ej: Merma, daños...' : 'E.g.: Loss, damage...'}
+                        className="w-full px-3 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded text-sm text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
+                      />
                     </td>
                   </tr>
                 ))}
@@ -560,19 +612,123 @@ export default function Inventory({
         </div>
       )}
 
-      {/* Modal de confirmación */}
+      {/* Modal de confirmación para generar vista previa */}
       <ConfirmationModal
         isOpen={showConfirmClose}
-        title={language === 'es' ? '🔒 Finalizar Control de Inventario' : '🔒 Finalize Inventory Control'}
+        title={language === 'es' ? '📋 Generar Vista Previa' : '📋 Generate Preview'}
         message={language === 'es' 
-          ? `Se realizarán las siguientes acciones:\n\n✓ Registro permanente en auditoría\n✓ Actualización del stock maestro de ${inventoryData.length} productos\n✓ Generación de PDF con logo ROAL BURGER\n\n📊 Descuadres detectados: ${descuadresCount}\n\n⚠️ Esta acción NO puede revertirse.` 
-          : `The following actions will be performed:\n\n✓ Permanent audit record\n✓ Master stock update for ${inventoryData.length} products\n✓ PDF generation with ROAL BURGER logo\n\n📊 Discrepancies detected: ${descuadresCount}\n\n⚠️ This action CANNOT be reversed.`}
+          ? `Se generará una vista previa del reporte con los siguientes datos:\n\n📍 Sede: ${selectedSede}\n👤 Responsable: ${selectedResponsible}\n📦 Proveedor: ${selectedProvider}\n\n📊 Salidas/Ventas: ${salidasCount} productos\n📉 Total Unidades Salientes: ${totalUnidadesSalientes}\n\nPodrás validar la información antes de confirmar el cierre definitivo.` 
+          : `A preview of the report will be generated with the following data:\n\n📍 Location: ${selectedSede}\n👤 Responsible: ${selectedResponsible}\n📦 Provider: ${selectedProvider}\n\n📊 Sales/Exits: ${salidasCount} products\n📉 Total Exit Units: ${totalUnidadesSalientes}\n\nYou can validate the information before confirming the final closure.`}
         onConfirm={handleCloseInventory}
         onCancel={() => setShowConfirmClose(false)}
-        confirmText={language === 'es' ? '✓ Finalizar y Generar Reporte' : '✓ Finalize and Generate Report'}
+        confirmText={language === 'es' ? '✓ Generar Vista Previa' : '✓ Generate Preview'}
         cancelText={language === 'es' ? 'Cancelar' : 'Cancel'}
-        isDangerous={descuadresCount > 0}
+        isDangerous={false}
       />
+
+      {/* Modal de Vista Previa del PDF */}
+      {showPreview && previewDoc && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 light-mode:bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+            {/* Header de la vista previa */}
+            <div className="bg-red-600 p-6 text-white">
+              <h2 className="text-2xl font-bold mb-2">📄 VISTA PREVIA DEL REPORTE</h2>
+              <p className="text-sm opacity-90">Valida la información antes de confirmar el cierre definitivo</p>
+            </div>
+
+            {/* Información del reporte */}
+            <div className="p-6 bg-gray-750 light-mode:bg-gray-100 border-b border-gray-700 light-mode:border-gray-300">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Sede</p>
+                  <p className="text-white light-mode:text-gray-900 font-bold text-lg">{selectedSede}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Responsable</p>
+                  <p className="text-white light-mode:text-gray-900 font-bold text-lg">{selectedResponsible}</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Proveedor</p>
+                  <p className="text-white light-mode:text-gray-900 font-bold text-lg">{selectedProvider}</p>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-800 light-mode:bg-white p-4 rounded-lg">
+                <div className="text-center">
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Total Productos</p>
+                  <p className="text-blue-400 light-mode:text-blue-600 font-bold text-2xl">{inventoryData.length}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Productos con Salidas</p>
+                  <p className="text-red-400 light-mode:text-red-600 font-bold text-2xl">{salidasCount}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-gray-400 light-mode:text-gray-600 text-sm">Total Unidades Salientes</p>
+                  <p className="text-red-400 light-mode:text-red-600 font-bold text-2xl">{totalUnidadesSalientes}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Mensaje de advertencia */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="bg-yellow-900/30 border border-yellow-600 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-yellow-500 mt-0.5" />
+                  <div>
+                    <p className="text-yellow-200 font-semibold mb-1">
+                      {language === 'es' ? '⚠️ Última verificación antes del cierre' : '⚠️ Final verification before closing'}
+                    </p>
+                    <p className="text-yellow-300 text-sm">
+                      {language === 'es' 
+                        ? 'Al confirmar, se ejecutarán las siguientes acciones IRREVERSIBLES:'
+                        : 'Upon confirmation, the following IRREVERSIBLE actions will be executed:'}
+                    </p>
+                    <ul className="text-yellow-300 text-sm mt-2 space-y-1 ml-4">
+                      <li>✓ {language === 'es' ? 'Registro permanente en base de datos' : 'Permanent database record'}</li>
+                      <li>✓ {language === 'es' ? `Actualización del stock de ${inventoryData.length} productos` : `Stock update for ${inventoryData.length} products`}</li>
+                      <li>✓ {language === 'es' ? 'Descarga automática del PDF' : 'Automatic PDF download'}</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-gray-300 light-mode:text-gray-700 text-center text-sm">
+                {language === 'es' 
+                  ? '¿Los datos de Sede y Responsable son correctos?' 
+                  : 'Are the Location and Responsible data correct?'}
+              </p>
+            </div>
+
+            {/* Botones de acción */}
+            <div className="p-6 border-t border-gray-700 light-mode:border-gray-300 flex gap-3 justify-end bg-gray-750 light-mode:bg-gray-100">
+              <button
+                onClick={() => {
+                  setShowPreview(false);
+                  setPreviewDoc(null);
+                }}
+                disabled={isProcessing}
+                className="px-6 py-3 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-700 transition-colors font-semibold"
+              >
+                {language === 'es' ? 'Cancelar' : 'Cancel'}
+              </button>
+              <button
+                onClick={handleConfirmAndSave}
+                disabled={isProcessing}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  isProcessing
+                    ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white shadow-lg'
+                }`}
+              >
+                {isProcessing 
+                  ? (language === 'es' ? '⏳ Procesando...' : '⏳ Processing...') 
+                  : (language === 'es' ? '✓ Confirmar y Descargar PDF' : '✓ Confirm and Download PDF')
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
