@@ -471,18 +471,6 @@ export default function Movements({ language = 'es', user }) {
           </p>
         </div>
       )}
-
-      {/* Modal de confirmación de eliminación */}
-      <ConfirmationModal
-        isOpen={confirmDelete !== null}
-        title={language === 'es' ? '¿Eliminar movimiento?' : 'Delete movement?'}
-        message={language === 'es' ? '¿Estás seguro de eliminar este registro? Esta acción no se puede deshacer.' : 'Are you sure you want to delete this record? This action cannot be undone.'}
-        onConfirm={() => handleDeleteMovement(confirmDelete)}
-        onCancel={() => setConfirmDelete(null)}
-        confirmText={language === 'es' ? 'Eliminar' : 'Delete'}
-        cancelText={language === 'es' ? 'Cancelar' : 'Cancel'}
-        isDangerous={true}
-      />
     </div>
   );
 }
