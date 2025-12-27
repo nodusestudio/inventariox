@@ -15,7 +15,8 @@ import {
   FileText,
   LogOut,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  ClipboardCheck
 } from 'lucide-react';
 import Logo from './Logo';
 import { t } from '../utils/translations';
@@ -41,7 +42,8 @@ export default function Sidebar({ currentPage, setCurrentPage, user, onLogout, l
   const tabs = [
     { name: 'dashboard', icon: LayoutDashboard, label: 'Panel' },
     { name: 'providers', icon: Users, label: 'Proveedores' },
-    { name: 'stock', icon: Boxes, label: 'Inventario' },
+    { name: 'stock', icon: Boxes, label: 'Productos' },
+    { name: 'audit', icon: ClipboardCheck, label: 'Auditoría' },
     { name: 'movements', icon: TrendingUp, label: 'Movimientos' },
     { name: 'analytics', icon: BarChart3, label: 'Análisis Visual' },
     { name: 'orders', icon: ShoppingCart, label: 'Pedidos' },

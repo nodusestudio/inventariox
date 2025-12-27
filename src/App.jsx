@@ -13,6 +13,7 @@ import DatabasePage from './pages/Database';
 import Reports from './pages/Reports';
 import Mermas from './pages/Mermas';
 import Analytics from './pages/Analytics';
+import Audit from './pages/Audit';
 import { Toaster, toast } from 'react-hot-toast';
 import { getProducts, getStock, getProviders, getOrders, getMovements, getCompanyData } from './services/firebaseService';
 
@@ -203,6 +204,12 @@ export default function App() {
     ),
     analytics: (
       <Analytics
+        language={language}
+        user={user}
+      />
+    ),
+    audit: (
+      <Audit
         language={language}
         user={user}
       />

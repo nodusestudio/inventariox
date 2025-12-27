@@ -1,15 +1,51 @@
-import { Package, TrendingUp, AlertCircle, AlertTriangle, CheckCircle, DollarSign, AlertOctagon, Boxes } from 'lucide-react';
+import { Package, TrendingUp, AlertCircle, AlertTriangle, CheckCircle, DollarSign, AlertOctagon, Boxes, ClipboardCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import MetricCard from '../components/MetricCard';
 import TableContainer from '../components/TableContainer';
 import { t } from '../utils/translations';
+import { subscribeToAuditLogs } from '../services/firebaseService';
 
 // Formato moneda local sin decimales
 const formatCLP = (value) => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(value || 0);
 
-export default function Dashboard({ inventoryData, productsData = [], stockData = [], language = 'es', isLoading = false }) {
+export default function Dashboard({ inventoryData, productsData = [], stockData = [], language = 'es', isLoading = false, user }) {
   const [alertProducts, setAlertProducts] = useState([]);
   const [selectedProvider, setSelectedProvider] = useState('');
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [lastAuditDays, setLastAuditDays] = useState(null);
+
+  // 🔥 Suscribirse a audit_logs para mostrar última auditoría
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToAuditLogs(user.uid, (logs) => {
+      setAuditLogs(logs);
+      
+      if (logs.length > 0) {
+        // Obtener la auditoría más reciente
+        const sortedLogs = [...logs].sort((a, b) => {
+          const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.timestamp || 0);
+          const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.timestamp || 0);
+          return dateB - dateA;
+        });
+        
+        const lastAudit = sortedLogs[0];
+        const lastAuditDate = lastAudit.createdAt?.toDate ? lastAudit.createdAt.toDate() : new Date(lastAudit.timestamp);
+        const today = new Date();
+        const diffTime = Math.abs(today - lastAuditDate);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        setLastAuditDays(diffDays);
+      } else {
+        setLastAuditDays(null);
+      }
+    });
+
+    return () => {
+      console.log('📤 Desuscribiéndose de audit_logs (Dashboard)');
+      unsubscribe();
+    };
+  }, [user]);
 
   // Función para calcular productos en estado crítico
   const calculateAlerts = () => {
@@ -179,6 +215,61 @@ export default function Dashboard({ inventoryData, productsData = [], stockData 
             </p>
           )}
         </div>
+
+        {/* 🔥 DASHBOARD: Indicador de última auditoría */}
+        {lastAuditDays !== null && (
+          <div className={`mb-6 sm:mb-8 rounded-lg p-4 sm:p-6 border transition-all duration-300 ${
+            lastAuditDays <= 7 
+              ? 'bg-green-900/20 border-green-700/40' 
+              : lastAuditDays <= 30 
+                ? 'bg-yellow-900/20 border-yellow-700/40'
+                : 'bg-red-900/20 border-red-700/40'
+          }`}>
+            <div className="flex items-center gap-3">
+              <ClipboardCheck className={`w-6 h-6 flex-shrink-0 ${
+                lastAuditDays <= 7 
+                  ? 'text-green-500' 
+                  : lastAuditDays <= 30 
+                    ? 'text-yellow-500'
+                    : 'text-red-500'
+              }`} />
+              <div>
+                <h3 className={`text-lg font-bold ${
+                  lastAuditDays <= 7 
+                    ? 'text-green-500' 
+                    : lastAuditDays <= 30 
+                      ? 'text-yellow-500'
+                      : 'text-red-500'
+                }`}>
+                  Último inventario realizado hace {lastAuditDays} {lastAuditDays === 1 ? 'día' : 'días'}
+                </h3>
+                <p className="text-sm text-gray-400 light-mode:text-gray-600 mt-1">
+                  {lastAuditDays <= 7 
+                    ? '✅ Inventario actualizado recientemente' 
+                    : lastAuditDays <= 30 
+                      ? '⚠️ Considera realizar una nueva auditoría pronto'
+                      : '🚨 Se recomienda realizar una auditoría urgente'}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!lastAuditDays && lastAuditDays !== 0 && (
+          <div className="mb-6 sm:mb-8 rounded-lg p-4 sm:p-6 border bg-blue-900/20 border-blue-700/40">
+            <div className="flex items-center gap-3">
+              <ClipboardCheck className="w-6 h-6 text-blue-500 flex-shrink-0" />
+              <div>
+                <h3 className="text-lg font-bold text-blue-500">
+                  No hay auditorías registradas
+                </h3>
+                <p className="text-sm text-gray-400 light-mode:text-gray-600 mt-1">
+                  💡 Realiza tu primera auditoría para llevar un control profesional del inventario
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tarjetas de Métricas */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">

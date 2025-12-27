@@ -721,6 +721,58 @@ export const deleteMerma = async (docId) => {
 };
 
 // ============================================================================
+// OPERACIONES DE AUDITORÍA
+// ============================================================================
+
+export const addAuditLog = async (userId, auditData) => {
+  try {
+    const docRef = await addDoc(collection(db, 'audit_logs'), {
+      ...auditData,
+      userId,
+      createdAt: Timestamp.now()
+    });
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding audit log:', error);
+    throw error;
+  }
+};
+
+export const getAuditLogs = async (userId) => {
+  try {
+    const q = query(collection(db, 'audit_logs'), where('userId', '==', userId));
+    const querySnapshot = await getDocs(q);
+    const auditLogs = [];
+    querySnapshot.forEach((doc) => {
+      auditLogs.push({ id: doc.id, ...doc.data() });
+    });
+    return auditLogs;
+  } catch (error) {
+    console.error('Error getting audit logs:', error);
+    return [];
+  }
+};
+
+// 🔥 REACTIVIDAD: Suscripción en tiempo real para audit_logs
+export const subscribeToAuditLogs = (userId, callback) => {
+  const q = query(collection(db, 'audit_logs'), where('userId', '==', userId));
+  
+  return onSnapshot(q,
+    (querySnapshot) => {
+      const auditLogs = [];
+      querySnapshot.forEach((doc) => {
+        auditLogs.push({ id: doc.id, ...doc.data() });
+      });
+      callback(auditLogs);
+    },
+    (error) => {
+      console.error('Error in audit_logs subscription:', error);
+      callback([]);
+    }
+  );
+};
+
+// ============================================================================
 // ELIMINACIÓN DE DATOS DE USUARIO (para cuando se elimina la cuenta)
 // ============================================================================
 
