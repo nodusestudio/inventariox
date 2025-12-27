@@ -48,6 +48,11 @@ export const getProducts = async (userId) => {
 
 export const updateProduct = async (docId, productData) => {
   try {
+    // Verificar que el docId no sea undefined
+    if (!docId || docId === undefined) {
+      throw new Error('ID del producto no válido');
+    }
+
     // Sanitizar datos antes de enviar a Firebase
     const sanitizedData = {
       nombre: (productData.nombre || '').toString().trim(),
@@ -65,10 +70,34 @@ export const updateProduct = async (docId, productData) => {
       throw new Error('Nombre y proveedor son obligatorios');
     }
 
+    // 🔥 FILTRO DE OBJETOS: Eliminar cualquier campo undefined/null antes de updateDoc
+    const cleanData = Object.fromEntries(
+      Object.entries(sanitizedData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+    );
+
+    // Verificar que haya datos válidos para actualizar
+    if (Object.keys(cleanData).length === 0) {
+      throw new Error('No hay datos válidos para actualizar');
+    }
+
+    // Verificar que el ID no esté dentro del objeto de datos
+    if (cleanData.id || cleanData.docId) {
+      delete cleanData.id;
+      delete cleanData.docId;
+    }
+
     const productRef = doc(db, 'products', docId);
-    await updateDoc(productRef, sanitizedData);
+    await updateDoc(productRef, cleanData);
   } catch (error) {
     console.error('Error updating product:', error);
+    // Manejo de errores específicos de Firebase
+    if (error.code === 'invalid-argument') {
+      throw new Error('Datos inválidos: ' + error.message);
+    } else if (error.code === 'not-found') {
+      throw new Error('Producto no encontrado');
+    } else if (error.code === 'permission-denied') {
+      throw new Error('Permiso denegado');
+    }
     throw error;
   }
 };

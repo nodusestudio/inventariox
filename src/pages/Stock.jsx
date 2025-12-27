@@ -169,19 +169,33 @@ export default function Stock({
       if (!continuar) return;
     }
 
+    // 🔥 VALORES POR DEFECTO: Asegurar que campos numéricos nunca sean undefined
     const productData = {
-      nombre: formData.nombre.trim().toUpperCase(),
-      proveedor: formData.proveedor.trim().toUpperCase(),
-      unidad: formData.unidad.trim().toUpperCase(),
+      nombre: (formData.nombre || '').trim().toUpperCase(),
+      proveedor: (formData.proveedor || '').trim().toUpperCase(),
+      unidad: (formData.unidad || 'UNIDADES').trim().toUpperCase(),
       costo: Number(formData.costo) || 0,
       stockActual: Number(formData.stockActual) || 0,
-      stockMinimo: Number(formData.stockMinimo) || 1,
-      stockCompra: Number(formData.stockCompra) || 10
+      stockMinimo: Number(formData.stockMinimo) || 0,
+      stockCompra: Number(formData.stockCompra) || 0
     };
+
+    // Verificar que no haya campos undefined antes de enviar
+    const hasUndefined = Object.values(productData).some(val => val === undefined);
+    if (hasUndefined) {
+      toast.error('❌ Error: Algunos campos tienen valores indefinidos');
+      console.error('productData con undefined:', productData);
+      return;
+    }
 
     setIsSaving(true);
     try {
       if (isEditing) {
+        // Verificar que editingId sea válido antes de actualizar
+        if (!editingId || editingId === undefined) {
+          throw new Error('ID del producto no válido');
+        }
+
         await updateProduct(editingId, productData);
         // Actualizar lista local
         setProducts(products.map(p => 
@@ -197,10 +211,22 @@ export default function Stock({
       setShowModal(false);
     } catch (error) {
       console.error('Error saving product:', error);
+      
+      // Manejo de errores con mensajes específicos de Firebase
       if (error.message?.includes('obligatorios')) {
         toast.error('❌ ' + error.message);
+      } else if (error.message?.includes('inválido') || error.message?.includes('invalid')) {
+        toast.error('❌ Datos inválidos: Revisa que todos los campos estén correctos');
+      } else if (error.message?.includes('undefined')) {
+        toast.error('❌ Error: Algunos campos tienen valores indefinidos');
+      } else if (error.message?.includes('ID del producto')) {
+        toast.error('❌ ' + error.message);
+      } else if (error.code === 'permission-denied') {
+        toast.error('❌ No tienes permiso para realizar esta acción');
+      } else if (error.code === 'not-found') {
+        toast.error('❌ Producto no encontrado');
       } else {
-        toast.error('❌ Error al guardar el producto');
+        toast.error('❌ Error al guardar: ' + (error.message || 'Error desconocido'));
       }
     } finally {
       setIsSaving(false);
@@ -262,7 +288,15 @@ export default function Stock({
     const updatedProduct = { ...productToAdjust, stockActual: newStock };
 
     try {
-      await updateProduct(confirmAdjust, { stockActual: newStock });
+      // Verificar que el ID sea válido
+      if (!confirmAdjust || confirmAdjust === undefined) {
+        toast.error('❌ ID del producto no válido');
+        return;
+      }
+      
+      // Asegurar que newStock sea un número válido
+      const stockValue = Number(newStock) || 0;
+      await updateProduct(confirmAdjust, { stockActual: stockValue });
       setProducts(products.map(p => p.id === confirmAdjust ? updatedProduct : p));
 
       // Registrar movimiento

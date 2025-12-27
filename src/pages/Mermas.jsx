@@ -102,15 +102,23 @@ export default function Mermas({ language = 'es', user }) {
 
       // Actualizar stock del producto (restar)
       const newStock = product.stockActual - parseInt(formData.cantidad);
-      await updateProduct(formData.productoId, { 
-        stockActual: newStock,
-        nombre: product.nombre || '',
-        proveedor: product.proveedor || '',
-        unidad: product.unidad || '',
+      // Construir datos con valores por defecto
+      const updateData = { 
+        stockActual: Number(newStock) || 0,
+        nombre: (product.nombre || '').toString(),
+        proveedor: (product.proveedor || '').toString(),
+        unidad: (product.unidad || 'UNIDADES').toString(),
         costo: Number(product.costo) || 0,
         stockMinimo: Number(product.stockMinimo) || 0,
         stockCompra: Number(product.stockCompra) || 0
-      });
+      };
+
+      // Filtrar undefined antes de actualizar
+      const cleanUpdateData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
+      );
+
+      await updateProduct(formData.productoId, cleanUpdateData);
 
       // Actualizar UI
       setMermas([{ id: mermaId, ...newMerma }, ...mermas]);
