@@ -96,14 +96,10 @@ export default function Inventory({
     doc.setFillColor(220, 53, 69); // Rojo corporativo
     doc.rect(0, 0, pageWidth, 35, 'F');
     
-    doc.setFontSize(24);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('ROAL BURGER', pageWidth / 2, 15, { align: 'center' });
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'normal');
-    doc.text('REPORTE DE MOVIMIENTO DIARIO', pageWidth / 2, 25, { align: 'center' });
+    doc.text('ROAL BURGER - CONTROL DE MOVIMIENTO', pageWidth / 2, 20, { align: 'center' });
     
     // Información general
     doc.setFontSize(10);
@@ -186,37 +182,42 @@ export default function Inventory({
       }
     });
     
-    // Resumen de salidas/ventas
+    // Resumen de Salidas
     const finalY = doc.lastAutoTable.finalY + 10;
     const salidas = data.filter(item => item.diferencia < 0);
     const totalUnidadesSalientes = salidas.reduce((sum, item) => sum + Math.abs(item.diferencia), 0);
     
     if (salidas.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 53, 69);
+      doc.text('RESUMEN DE SALIDAS', 14, finalY);
+      
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text(`TOTAL UNIDADES SALIENTES (VENTAS/MERMAS): ${totalUnidadesSalientes}`, 14, finalY);
+      doc.text(`Total Unidades Salientes: ${totalUnidadesSalientes}`, 14, finalY + 8);
       
       doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(220, 53, 69);
-      doc.text(`📊 DETALLE DE PRODUCTOS CON SALIDAS`, 14, finalY + 10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Detalle de productos:', 14, finalY + 16);
       
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
       
-      let yPos = finalY + 18;
+      let yPos = finalY + 22;
       salidas.forEach((item, idx) => {
         if (yPos > 270) {
           doc.addPage();
           yPos = 20;
         }
-        doc.text(`• ${item.nombre}: ${Math.abs(item.diferencia)} ${item.unidad}`, 14, yPos);
+        doc.text(`• ${item.nombre}: ${Math.abs(item.diferencia)} ${item.unidad}`, 18, yPos);
         if (item.observaciones) {
           doc.setFontSize(8);
           doc.setTextColor(100, 100, 100);
-          doc.text(`  Obs: ${item.observaciones}`, 14, yPos + 4);
+          doc.text(`  Obs: ${item.observaciones}`, 18, yPos + 4);
           doc.setFontSize(9);
           doc.setTextColor(0, 0, 0);
           yPos += 4;
@@ -224,11 +225,20 @@ export default function Inventory({
         yPos += 6;
       });
     } else {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(34, 139, 34);
+      doc.text('RESUMEN DE SALIDAS', 14, finalY);
+      
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(34, 139, 34);
-      doc.text('TOTAL UNIDADES SALIENTES (VENTAS/MERMAS): 0', 14, finalY);
-      doc.text('✓ SIN SALIDAS - STOCK COMPLETO', 14, finalY + 8);
+      doc.text('Total Unidades Salientes: 0', 14, finalY + 8);
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text('Sin salidas registradas - Stock completo', 14, finalY + 16);
     }
     
     // Sección de firmas
@@ -287,6 +297,7 @@ export default function Inventory({
 
   // ============ CERRAR INVENTARIO Y GUARDAR ============
   const handleCloseInventory = async () => {
+    // Validación 1: Campos obligatorios
     if (!selectedProvider || !selectedResponsible || !selectedSede) {
       alert(language === 'es' 
         ? 'Debes seleccionar Proveedor, Responsable y Sede' 
@@ -294,8 +305,18 @@ export default function Inventory({
       return;
     }
 
-    // Validar que todos los productos tengan stock físico ingresado
-    const incomplete = inventoryData.some(item => item.stockFisico === '');
+    // Validación 2: Verificar que hay productos cargados
+    if (!inventoryData || inventoryData.length === 0) {
+      alert(language === 'es'
+        ? 'No hay productos cargados para generar el reporte'
+        : 'No products loaded to generate the report');
+      return;
+    }
+
+    // Validación 3: Stock físico completo
+    const incomplete = inventoryData.some(item => 
+      item.stockFisico === '' || item.stockFisico === null || item.stockFisico === undefined
+    );
     if (incomplete) {
       alert(language === 'es'
         ? 'Debes ingresar el stock físico de todos los productos'
@@ -303,11 +324,32 @@ export default function Inventory({
       return;
     }
 
-    // Generar PDF y mostrar vista previa
-    const doc = generatePDF(inventoryData);
-    setPreviewDoc(doc);
-    setShowPreview(true);
-    setShowConfirmClose(false);
+    // Validación 4: Verificar que las variables críticas existen antes de generar PDF
+    const isDataValid = selectedSede && selectedResponsible && selectedProvider && 
+                        inventoryData.every(item => 
+                          item.nombre && item.unidad !== undefined && 
+                          item.stockTeorico !== undefined && item.diferencia !== undefined
+                        );
+    
+    if (!isDataValid) {
+      alert(language === 'es'
+        ? 'Error: Datos incompletos. Verifica que todos los campos estén correctos.'
+        : 'Error: Incomplete data. Verify that all fields are correct.');
+      return;
+    }
+
+    // Generar PDF y mostrar vista previa solo si todas las validaciones pasan
+    try {
+      const doc = generatePDF(inventoryData);
+      setPreviewDoc(doc);
+      setShowPreview(true);
+      setShowConfirmClose(false);
+    } catch (error) {
+      console.error('Error generando vista previa:', error);
+      alert(language === 'es'
+        ? 'Error al generar la vista previa del PDF. Verifica los datos ingresados.'
+        : 'Error generating PDF preview. Verify the entered data.');
+    }
   };
 
   // ============ CONFIRMAR Y GUARDAR DESPUÉS DE VISTA PREVIA ============
@@ -373,7 +415,12 @@ export default function Inventory({
           : '⚠️ Record saved but there was an error updating master stock');
       }
 
-      // PASO 3: Solo después de guardar exitosamente, descargar el PDF
+      // PASO 3: Confirmar éxito del guardado en Firebase ANTES de generar PDF
+      alert(language === 'es'
+        ? '✓ Registro guardado exitosamente en la base de datos.\n✓ Stock actualizado.\n✓ Descargando PDF...'
+        : '✓ Record saved successfully in database.\n✓ Stock updated.\n✓ Downloading PDF...');
+      
+      // PASO 4: Solo después de confirmar guardado exitoso, descargar el PDF
       if (previewDoc) {
         const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
         previewDoc.save(fileName);
@@ -388,10 +435,6 @@ export default function Inventory({
       setHasUnsavedChanges(false);
       setShowPreview(false);
       setPreviewDoc(null);
-
-      alert(language === 'es'
-        ? '✓ Inventario cerrado correctamente.\n✓ Stock actualizado.\n✓ PDF descargado.'
-        : '✓ Inventory closed successfully.\n✓ Stock updated.\n✓ PDF downloaded.');
 
     } catch (error) {
       console.error('Error al cerrar inventario:', error);
