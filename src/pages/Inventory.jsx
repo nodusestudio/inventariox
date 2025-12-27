@@ -139,42 +139,47 @@ export default function Inventory({
     doc.setLineWidth(0.5);
     doc.line(14, 72, pageWidth - 14, 72);
     
-    // Tabla de Movimientos
-    const tableData = data.map(item => [
-      item.nombre,
-      item.unidad,
-      item.stockTeorico.toString(),
-      item.stockFisico.toString(),
-      item.diferencia.toString(),
-      item.observaciones || '-'
-    ]);
+    // Tabla de Movimientos con COSTO DE SALIDA
+    const tableData = data.map(item => {
+      const costoSalida = item.diferencia > 0 ? (item.diferencia * (item.costoUnitario || 0)) : 0;
+      return [
+        item.nombre,
+        item.unidad,
+        item.stockTeorico.toString(),
+        item.stockFisico.toString(),
+        item.diferencia.toString(),
+        `$${costoSalida.toFixed(2)}`,  // 💰 Nueva columna
+        item.observaciones || '-'
+      ];
+    });
     
     doc.autoTable({
       startY: 77,
-      head: [['Producto', 'Unidad', 'Stock Teórico', 'Conteo Físico', 'Consumo', 'Observaciones']],
+      head: [['Producto', 'Unidad', 'Stock Teórico', 'Conteo Físico', 'Consumo', 'Costo Salida', 'Observaciones']],
       body: tableData,
       theme: 'striped',
       headStyles: { 
         fillColor: [220, 53, 69], // Rojo ROAL BURGER
         textColor: 255,
         fontStyle: 'bold',
-        fontSize: 9,
+        fontSize: 8,
         halign: 'center'
       },
       bodyStyles: { 
-        fontSize: 8,
-        cellPadding: 3
+        fontSize: 7,
+        cellPadding: 2
       },
       alternateRowStyles: {
         fillColor: [245, 245, 245]
       },
       columnStyles: {
-        0: { cellWidth: 50 },
-        1: { cellWidth: 20, halign: 'center' },
-        2: { cellWidth: 25, halign: 'center' },
-        3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 25, halign: 'center' },
-        5: { cellWidth: 40 }
+        0: { cellWidth: 45 },           // Producto
+        1: { cellWidth: 18, halign: 'center' },  // Unidad
+        2: { cellWidth: 22, halign: 'center' },  // Stock Teórico
+        3: { cellWidth: 22, halign: 'center' },  // Conteo Físico
+        4: { cellWidth: 20, halign: 'center' },  // Consumo
+        5: { cellWidth: 25, halign: 'right' },   // 💰 Costo Salida
+        6: { cellWidth: 33 }            // Observaciones
       },
       didParseCell: function(data) {
         // Resaltar Consumo (positivo = vendido/consumido, negativo = excedente)
@@ -194,27 +199,37 @@ export default function Inventory({
     let finalY = doc.lastAutoTable.finalY + 12;
     const productosConConsumo = data.filter(item => item.diferencia > 0);
     
+    // Calcular costo total de salidas
+    const totalCostoSalidasPDF = data.reduce((sum, item) => {
+      const costoSalida = item.diferencia > 0 ? (item.diferencia * (item.costoUnitario || 0)) : 0;
+      return sum + costoSalida;
+    }, 0);
+    
     // Rectángulo destacado para la sumatoria
     doc.setFillColor(240, 240, 240);
-    doc.roundedRect(14, finalY - 3, pageWidth - 28, 28, 2, 2, 'F');
+    doc.roundedRect(14, finalY - 3, pageWidth - 28, 32, 2, 2, 'F');
     
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(220, 53, 69);
     doc.text('SUMATORIA TOTAL DE CONSUMO', 20, finalY + 5);
     
-    doc.setFontSize(20);
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(220, 53, 69);
-    doc.text(`${totalConsumo} UNIDADES`, pageWidth - 20, finalY + 18, { align: 'right' });
+    doc.text(`${totalConsumo} UNIDADES`, pageWidth - 20, finalY + 14, { align: 'right' });
+    
+    doc.setFontSize(12);
+    doc.setTextColor(0, 128, 0);
+    doc.text(`COSTO: $${totalCostoSalidasPDF.toFixed(2)}`, pageWidth - 20, finalY + 23, { align: 'right' });
     
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(100, 100, 100);
-    doc.text(`Productos con consumo: ${productosConConsumo.length} de ${data.length}`, 20, finalY + 18);
+    doc.text(`Productos con consumo: ${productosConConsumo.length} de ${data.length}`, 20, finalY + 23);
     
     // LÍNEA DE FIRMA DEL RESPONSABLE
-    finalY += 45;
+    finalY += 48;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
@@ -404,15 +419,16 @@ export default function Inventory({
       console.log('- 💰 Costo Total Salidas: $', totalCostoSalidas.toFixed(2));
 
       // FLUJO DIRECTO: Guardar en Firebase EN PARALELO con doble registro
-      console.log('Guardando en Firebase (inventory_logs + movimientos_inventario)...');
+      console.log('🚀 Guardando en Firebase (inventory_logs + inventory_movements)...');
       await Promise.all([
         addInventoryLog(userId, responsable, proveedor, productos, totalCostoSalidas),
         ...inventoryData.map(item => 
           updateProduct(item.id, { stockActual: parseFloat(item.stockFisico) })
         )
       ]);
-      console.log('✅ Doble registro completado: resumen + movimientos individuales');
-      console.log('✅ Stock maestro actualizado en products');
+      console.log('✅ Registro completado en inventory_logs');
+      console.log('✅ Movimientos guardados en inventory_movements');
+      console.log('✅ Stock maestro (products) actualizado con Stock Físico');
 
       // Generar y descargar PDF (operación asíncrona)
       console.log('Generando PDF...');
@@ -430,8 +446,8 @@ export default function Inventory({
       console.log('✅ Formulario completamente reseteado y listo para el siguiente proveedor');
 
       // Mensaje de éxito según especificación
-      alert('Información de movimientos y costos guardada con éxito');
-      console.log('=== PROCESO COMPLETADO: Movimientos, costos y stock actualizados ===');
+      alert('Movimientos y costos registrados correctamente en la base de datos');
+      console.log('=== ✅ PERSISTENCIA COMPLETA: Movimientos, costos y stock actualizados ===');
 
     } catch (error) {
       console.error('Error al guardar inventario:', error);

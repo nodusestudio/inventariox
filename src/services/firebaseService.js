@@ -725,12 +725,12 @@ export const deleteMerma = async (docId) => {
  * 
  * Realiza DOBLE REGISTRO en Firebase:
  * 1. Resumen en 'inventory_logs' (consolidado del cierre)
- * 2. Movimientos individuales en 'movimientos_inventario' (trazabilidad histórica)
+ * 2. Movimientos individuales en 'inventory_movements' (trazabilidad histórica)
  * 
  * ESTRUCTURA DE DATOS:
  * - nombre, unidad: Identificación del producto
  * - stockInicial, stockFinal: Stocks teórico y físico
- * - cantidadSalida: Unidades vendidas/consumidas
+ * - cantidadSalida: Unidades vendidas/consumidas (consumo)
  * - costoUnitario, totalCostoSalida: Costos y valor total de la salida
  * 
  * NOTA CRÍTICA: NO incluye campo 'sede' - Eliminado para ROAL BURGER
@@ -760,7 +760,7 @@ export const addInventoryLog = async (userId, responsable, proveedor, productos,
     // Usar el totalCostoSalidas pasado como parámetro o calcularlo
     const costoFinal = totalCostoSalidas > 0 ? totalCostoSalidas : totalCostoCalculado;
 
-    console.log('📦 Firebase - Resumen a guardar:');
+    console.log('📦 Firebase - Iniciando registro de inventario...');
     console.log('   - Responsable:', responsable.trim());
     console.log('   - Proveedor:', proveedor.trim());
     console.log('   - Total Productos:', productos.length);
@@ -787,20 +787,20 @@ export const addInventoryLog = async (userId, responsable, proveedor, productos,
     console.log('✅ Resumen guardado en inventory_logs con ID:', docRef.id);
     
     // ========================================
-    // REGISTRO 2: Movimientos individuales en 'movimientos_inventario'
+    // REGISTRO 2: Movimientos individuales en 'inventory_movements'
     // ========================================
     const movimientosPromises = productos
       .filter(item => item.cantidadSalida > 0)  // Solo registrar productos con salida
       .map(item => 
-        addDoc(collection(db, 'movimientos_inventario'), {
+        addDoc(collection(db, 'inventory_movements'), {
           inventoryLogId: docRef.id,  // Referencia al resumen
           productoId: item.id,
           productoNombre: item.nombre,
           unidad: item.unidad,
           stockInicial: item.stockInicial,
           stockFinal: item.stockFinal,
-          cantidadSalida: item.cantidadSalida,
-          costoUnitario: item.costoUnitario,
+          cantidadSalida: item.cantidadSalida,   // Consumo positivo
+          costoUnitario: item.costoUnitario,      // Precio de costo
           totalCostoSalida: item.totalCostoSalida,  // 💰 Valor de la salida
           observaciones: item.observaciones,
           responsable: responsable.trim(),
@@ -812,7 +812,7 @@ export const addInventoryLog = async (userId, responsable, proveedor, productos,
       );
     
     await Promise.all(movimientosPromises);
-    console.log(`✅ ${movimientosPromises.length} movimientos individuales guardados en movimientos_inventario`);
+    console.log(`✅ ${movimientosPromises.length} movimientos guardados en inventory_movements`);
     
     console.log('✅ Doble registro completado exitosamente');
     return docRef.id;
