@@ -719,10 +719,23 @@ export const deleteMerma = async (docId) => {
 
 // ============================================================================
 // OPERACIONES DE INVENTARIO DIARIO (inventory_logs)
-// NOTA CRÍTICA: NO incluye campo 'sede' - Eliminado para ROAL BURGER
 // ============================================================================
-
-export const addInventoryLog = async (userId, responsable, proveedor, productos) => {
+/**
+ * FUNCIÓN PROFESIONAL DE REGISTRO DE INVENTARIO
+ * 
+ * Realiza DOBLE REGISTRO en Firebase:
+ * 1. Resumen en 'inventory_logs' (consolidado del cierre)
+ * 2. Movimientos individuales en 'movimientos_inventario' (trazabilidad histórica)
+ * 
+ * ESTRUCTURA DE DATOS:
+ * - nombre, unidad: Identificación del producto
+ * - stockInicial, stockFinal: Stocks teórico y físico
+ * - cantidadSalida: Unidades vendidas/consumidas
+ * - costoUnitario, totalCostoSalida: Costos y valor total de la salida
+ * 
+ * NOTA CRÍTICA: NO incluye campo 'sede' - Eliminado para ROAL BURGER
+ */
+export const addInventoryLog = async (userId, responsable, proveedor, productos, totalCostoSalidas = 0) => {
   try {
     // Validaciones estrictas (sin sede)
     if (!responsable || responsable.trim() === '') {
@@ -735,19 +748,28 @@ export const addInventoryLog = async (userId, responsable, proveedor, productos)
       throw new Error('No hay productos para registrar');
     }
 
-    // Calcular métricas de consumo
+    // Calcular métricas de consumo y costos
     const consumoTotal = productos.reduce((sum, item) => 
       sum + (item.consumo > 0 ? item.consumo : 0), 0
     );
     const productosConsumo = productos.filter(item => item.consumo > 0).length;
+    const totalCostoCalculado = productos.reduce((sum, item) => 
+      sum + (item.totalCostoSalida || 0), 0
+    );
+    
+    // Usar el totalCostoSalidas pasado como parámetro o calcularlo
+    const costoFinal = totalCostoSalidas > 0 ? totalCostoSalidas : totalCostoCalculado;
 
-    console.log('📦 Firebase - Objeto a guardar (SIN sede):');
+    console.log('📦 Firebase - Resumen a guardar:');
     console.log('   - Responsable:', responsable.trim());
     console.log('   - Proveedor:', proveedor.trim());
     console.log('   - Total Productos:', productos.length);
-    console.log('   - Consumo Total:', consumoTotal);
+    console.log('   - Consumo Total:', consumoTotal, 'unidades');
+    console.log('   - 💰 Costo Total Salidas: $', costoFinal.toFixed(2));
 
-    // Objeto limpio para Firebase: responsable, proveedor, productos, fecha, totalConsumo
+    // ========================================
+    // REGISTRO 1: Resumen en 'inventory_logs'
+    // ========================================
     const docRef = await addDoc(collection(db, 'inventory_logs'), {
       responsable: responsable.trim(),
       proveedor: proveedor.trim(),
@@ -755,13 +777,44 @@ export const addInventoryLog = async (userId, responsable, proveedor, productos)
       consumoTotal,
       productosConsumo,
       totalProductos: productos.length,
+      totalCostoSalidas: costoFinal,  // 💰 Costo total de lo que salió de bodega
       userId,
       fecha_hora: Timestamp.now(),
       createdAt: Timestamp.now()
       // ❌ NO incluye 'sede' - Campo eliminado permanentemente
     });
     
-    console.log('✅ Firebase - Documento guardado con ID:', docRef.id);
+    console.log('✅ Resumen guardado en inventory_logs con ID:', docRef.id);
+    
+    // ========================================
+    // REGISTRO 2: Movimientos individuales en 'movimientos_inventario'
+    // ========================================
+    const movimientosPromises = productos
+      .filter(item => item.cantidadSalida > 0)  // Solo registrar productos con salida
+      .map(item => 
+        addDoc(collection(db, 'movimientos_inventario'), {
+          inventoryLogId: docRef.id,  // Referencia al resumen
+          productoId: item.id,
+          productoNombre: item.nombre,
+          unidad: item.unidad,
+          stockInicial: item.stockInicial,
+          stockFinal: item.stockFinal,
+          cantidadSalida: item.cantidadSalida,
+          costoUnitario: item.costoUnitario,
+          totalCostoSalida: item.totalCostoSalida,  // 💰 Valor de la salida
+          observaciones: item.observaciones,
+          responsable: responsable.trim(),
+          proveedor: proveedor.trim(),
+          userId,
+          fecha_hora: Timestamp.now(),
+          createdAt: Timestamp.now()
+        })
+      );
+    
+    await Promise.all(movimientosPromises);
+    console.log(`✅ ${movimientosPromises.length} movimientos individuales guardados en movimientos_inventario`);
+    
+    console.log('✅ Doble registro completado exitosamente');
     return docRef.id;
   } catch (error) {
     console.error('❌ Firebase - Error al guardar:', error);

@@ -36,7 +36,7 @@ export default function Inventory({
       const products = productsData.filter(p => p.proveedor === selectedProvider);
       setFilteredProducts(products);
       
-      // Inicializar datos de inventario con stock teórico
+      // Inicializar datos de inventario con stock teórico Y costo
       const initialData = products.map(p => ({
         id: p.id,
         nombre: p.nombre,
@@ -44,7 +44,8 @@ export default function Inventory({
         stockTeorico: p.stockActual || 0,
         stockFisico: '',
         diferencia: 0,
-        observaciones: ''
+        observaciones: '',
+        costoUnitario: p.costo || 0  // 💰 Incluir costo para cálculos posteriores
       }));
       setInventoryData(initialData);
     } else {
@@ -365,36 +366,53 @@ export default function Inventory({
     console.log('Cargando...');
     
     try {
-      // FIREBASE CLEAN: Objeto estrictamente limpio sin 'sede'
-      const productos = inventoryData.map(item => ({
-        id: item.id,
-        nombre: item.nombre,
-        unidad: item.unidad,
-        stockTeorico: item.stockTeorico,
-        stockFisico: parseFloat(item.stockFisico),
-        consumo: item.diferencia,
-        observaciones: item.observaciones || ''
-      }));
+      // ESTRUCTURA DE DATOS COMPLETA con costos y movimientos
+      const productos = inventoryData.map(item => {
+        const stockInicial = item.stockTeorico;
+        const stockFinal = parseFloat(item.stockFisico);
+        const cantidadSalida = item.diferencia > 0 ? item.diferencia : 0;  // Solo salidas positivas
+        const costoUnitario = item.costoUnitario || 0;
+        const totalCostoSalida = cantidadSalida * costoUnitario;  // 💰 Costo total de la salida
+        
+        return {
+          id: item.id,
+          nombre: item.nombre,
+          unidad: item.unidad,
+          stockInicial,           // Stock teórico al inicio
+          stockFinal,             // Stock físico contado
+          cantidadSalida,         // Diferencia positiva = venta/consumo
+          costoUnitario,          // Precio de costo del producto
+          totalCostoSalida,       // Costo total de lo que salió
+          consumo: item.diferencia,  // Mantener para compatibilidad
+          observaciones: item.observaciones || ''
+        };
+      });
 
+      // Totales calculados
       const totalConsumo = productos.reduce((sum, item) => 
         sum + (item.consumo > 0 ? item.consumo : 0), 0
       );
+      const totalCostoSalidas = productos.reduce((sum, item) => 
+        sum + item.totalCostoSalida, 0
+      );  // 💰 Total de dinero que salió de la bodega
 
-      console.log('Objeto para Firebase (SIN sede):');
+      console.log('📊 Objeto para Firebase (Estructura Completa):');
       console.log('- Responsable:', responsable);
       console.log('- Proveedor:', proveedor);
       console.log('- Total Productos:', productos.length);
-      console.log('- Consumo Total:', totalConsumo);
+      console.log('- Consumo Total (unidades):', totalConsumo);
+      console.log('- 💰 Costo Total Salidas: $', totalCostoSalidas.toFixed(2));
 
-      // FLUJO DIRECTO: Guardar en Firebase EN PARALELO
-      console.log('Guardando en Firebase...');
+      // FLUJO DIRECTO: Guardar en Firebase EN PARALELO con doble registro
+      console.log('Guardando en Firebase (inventory_logs + movimientos_inventario)...');
       await Promise.all([
-        addInventoryLog(userId, responsable, proveedor, productos),
+        addInventoryLog(userId, responsable, proveedor, productos, totalCostoSalidas),
         ...inventoryData.map(item => 
           updateProduct(item.id, { stockActual: parseFloat(item.stockFisico) })
         )
       ]);
-      console.log('✅ Guardado en Firebase completado');
+      console.log('✅ Doble registro completado: resumen + movimientos individuales');
+      console.log('✅ Stock maestro actualizado en products');
 
       // Generar y descargar PDF (operación asíncrona)
       console.log('Generando PDF...');
@@ -411,9 +429,9 @@ export default function Inventory({
       setHasUnsavedChanges(false);
       console.log('✅ Formulario completamente reseteado y listo para el siguiente proveedor');
 
-      // Mensaje de éxito
-      alert('¡Inventario registrado con éxito! PDF descargado.');
-      console.log('=== PROCESO COMPLETADO CON ÉXITO ===');
+      // Mensaje de éxito según especificación
+      alert('Información de movimientos y costos guardada con éxito');
+      console.log('=== PROCESO COMPLETADO: Movimientos, costos y stock actualizados ===');
 
     } catch (error) {
       console.error('Error al guardar inventario:', error);
