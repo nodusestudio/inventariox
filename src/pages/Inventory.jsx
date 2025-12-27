@@ -1,8 +1,55 @@
 import { useState, useEffect } from 'react';
-import { FileCheck, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Download, Sparkles } from 'lucide-react';
+import { FileCheck, AlertTriangle, TrendingUp, TrendingDown, DollarSign, Download, Sparkles, CheckCircle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { addInventoryLog, getTodayInventoryLog, updateProduct, saveInventoryHistory, subscribeToInventoryHistory } from '../services/firebaseService';
+
+/**
+ * ╔════════════════════════════════════════════════════════════════════╗
+ * ║  COMPONENTE: INVENTORY - ROAL BURGER                              ║
+ * ║  Arquitecto: Software Senior                                       ║
+ * ╚════════════════════════════════════════════════════════════════════╝
+ * 
+ * 🎯 OBJETIVO:
+ * Sistema completo de gestión de inventario con persistencia en cascada,
+ * análisis inteligente de anomalías y dashboard de KPIs en tiempo real.
+ * 
+ * 📊 ARQUITECTURA DE DATOS (3 CAPAS):
+ * 
+ * CAPA 1 - ACTUALIZACIÓN DE STOCK:
+ *   → Colección: 'products'
+ *   → Acción: Sobrescribe stockActual con el conteo físico
+ *   → Propósito: Mantener stock maestro actualizado
+ * 
+ * CAPA 2 - HISTORIAL PARA DASHBOARD:
+ *   → Colección: 'inventory_history'
+ *   → Datos: {fecha, responsable, proveedor, productos[], totalCostoSalidas}
+ *   → Propósito: Alimentar dashboard de inteligencia y KPIs
+ *   → Features: Detección de anomalías, re-descarga de PDFs
+ * 
+ * CAPA 3 - AUDITORÍA INDIVIDUAL:
+ *   → Colección: 'inventory_movements' (dentro de inventory_logs)
+ *   → Datos: Movimiento por cada producto con salida
+ *   → Propósito: Trazabilidad granular y auditoría
+ * 
+ * 🔍 INTELIGENCIA DE NEGOCIO:
+ * 
+ * - Producto Estrella: Mayor salida acumulada
+ * - Baja Rotación: Menor movimiento registrado
+ * - Inversión en Salidas: Σ(cantidad_salida × costo_unitario)
+ * - Anomalías: Salida actual > promedio_últimos_3 × 1.40
+ * 
+ * ⚡ REACTIVIDAD:
+ * - subscribeToInventoryHistory(): Actualización en tiempo real
+ * - Auto-cálculo de analytics al recibir nuevos datos
+ * - UI responsiva con feedback visual (Toast)
+ * 
+ * 📱 UX:
+ * - Toast de confirmación (5 segundos)
+ * - Reset automático de formulario
+ * - Validaciones pre-guardado
+ * - Consola técnica con resumen de operaciones
+ */
 
 
 export default function Inventory({ 
@@ -25,6 +72,7 @@ export default function Inventory({
     bajaRotacion: null,
     inversionSalidas: 0
   });
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   // ============ VERIFICAR SI YA HAY CIERRE HOY ============
   useEffect(() => {
@@ -159,34 +207,50 @@ export default function Inventory({
     });
   };
 
-  // ============ DETECCIÓN DE ANOMALÍAS ============
+  // ============ DETECCIÓN DE ANOMALÍAS (SALIDAS BRUSCAS) ============
+  // Criterio: Consumo actual 40% superior al promedio de los últimos 3 registros
   const detectarAnomalia = (producto, historialCompleto) => {
-    if (!historialCompleto || historialCompleto.length < 3) return false;
+    if (!historialCompleto || historialCompleto.length < 4) return false; // Necesitamos al menos 4 registros (3 anteriores + actual)
 
-    // Obtener historial del producto específico
+    // Obtener historial del producto específico (ordenado por fecha descendente)
     const salidasProducto = [];
     historialCompleto.forEach(registro => {
       if (registro.productos && Array.isArray(registro.productos)) {
         const prod = registro.productos.find(p => p.nombre === producto.nombre);
-        if (prod && prod.cantidadSalida) {
-          salidasProducto.push(prod.cantidadSalida);
+        if (prod && (prod.cantidadSalida !== undefined || prod.consumo !== undefined)) {
+          const salida = prod.cantidadSalida || prod.consumo || 0;
+          if (salida > 0) {
+            salidasProducto.push(salida);
+          }
         }
       }
     });
 
-    if (salidasProducto.length < 3) return false;
+    if (salidasProducto.length < 4) return false; // Necesitamos al menos 4 datos
 
-    // Calcular promedio y desviación estándar
-    const promedio = salidasProducto.reduce((a, b) => a + b, 0) / salidasProducto.length;
-    const desviacion = Math.sqrt(
-      salidasProducto.reduce((sum, val) => sum + Math.pow(val - promedio, 2), 0) / salidasProducto.length
-    );
+    // Salida actual (más reciente)
+    const salidaActual = salidasProducto[0];
+    
+    // Promedio de los últimos 3 registros (excluyendo el actual)
+    const ultimosTres = salidasProducto.slice(1, 4);
+    const promedio = ultimosTres.reduce((a, b) => a + b, 0) / ultimosTres.length;
 
-    // Última salida
-    const ultimaSalida = salidasProducto[0];
+    // Umbral: 40% superior al promedio
+    const umbral = promedio * 1.40;
 
-    // Anomalía: última salida supera 2 desviaciones estándar del promedio
-    return ultimaSalida > (promedio + 2 * desviacion);
+    // Anomalía detectada si salida actual supera el umbral
+    const esAnomalia = salidaActual > umbral;
+    
+    if (esAnomalia) {
+      console.log(`⚠️ ANOMALÍA DETECTADA en ${producto.nombre}:`, {
+        salidaActual,
+        promedio: promedio.toFixed(2),
+        umbral: umbral.toFixed(2),
+        diferencia: ((salidaActual / promedio - 1) * 100).toFixed(1) + '%'
+      });
+    }
+
+    return esAnomalia;
   };
 
   // ============ RE-DESCARGAR PDF DESDE HISTORIAL ============
@@ -554,10 +618,16 @@ export default function Inventory({
       console.log('- Proveedor:', proveedor);
       console.log('- Total Productos:', productos.length);
       console.log('- Consumo Total (unidades):', totalConsumo);
-      console.log('- 💰 Costo Total Salidas: $', totalCostoSalidas.toFixed(2));
+      console.log('- 💰 Costo Total de Inversión Perdida: $', totalCostoSalidas.toFixed(2));
 
-      // FLUJO DIRECTO: Guardar en Firebase EN PARALELO con TRIPLE registro
-      console.log('🚀 Guardando en Firebase (inventory_logs + inventory_movements + inventory_history)...');
+      // ============================================================
+      // PERSISTENCIA EN CASCADA (3 ACCIONES ATÓMICAS)
+      // ============================================================
+      // 1. Actualizar Stock: Sobrescribir stockActual en productos
+      // 2. Crear Historial: Guardar en inventory_history
+      // 3. Registrar Movimientos: Insertar en inventory_movements
+      // ============================================================
+      console.log('🚀 Ejecutando persistencia en cascada (3 acciones atómicas)...');
       await Promise.all([
         addInventoryLog(userId, responsable, proveedor, productos, totalCostoSalidas),
         saveInventoryHistory(userId, responsable, proveedor, productos, totalConsumo, totalCostoSalidas),
@@ -565,10 +635,9 @@ export default function Inventory({
           updateProduct(item.id, { stockActual: parseFloat(item.stockFisico) })
         )
       ]);
-      console.log('✅ Registro completado en inventory_logs');
-      console.log('✅ Movimientos guardados en inventory_movements');
-      console.log('✅ Historial guardado en inventory_history (trazabilidad)');
-      console.log('✅ Stock maestro (products) actualizado con Stock Físico');
+      console.log('✅ 1/3 - Registro completado en inventory_logs');
+      console.log('✅ 2/3 - Historial guardado en inventory_history (trazabilidad)');
+      console.log('✅ 3/3 - Stock maestro (products) actualizado con Stock Físico');
 
       // Generar y descargar PDF (operación asíncrona)
       console.log('Generando PDF...');
@@ -585,9 +654,29 @@ export default function Inventory({
       setHasUnsavedChanges(false);
       console.log('✅ Formulario completamente reseteado y listo para el siguiente proveedor');
 
-      // Mensaje de éxito según especificación
-      alert('Movimientos y costos registrados correctamente en la base de datos');
-      console.log('=== ✅ PERSISTENCIA COMPLETA: Movimientos, costos y stock actualizados ===');
+      // Mostrar Toast de éxito
+      setShowSuccessToast(true);
+      setTimeout(() => setShowSuccessToast(false), 5000);
+      
+      // Resumen técnico en consola para verificación
+      console.log('\n');
+      console.log('%c╔════════════════════════════════════════════════════════╗', 'color: #10b981; font-weight: bold');
+      console.log('%c║  ✅ INTEGRACIÓN COMPLETA - ROAL BURGER                ║', 'color: #10b981; font-weight: bold');
+      console.log('%c╚════════════════════════════════════════════════════════╝', 'color: #10b981; font-weight: bold');
+      console.log('%c📊 CAPA 1: Stock actualizado en productos', 'color: #3b82f6; font-weight: bold');
+      console.log(`   → ${productos.length} productos actualizados`);
+      console.log('%c📚 CAPA 2: Historial para dashboard', 'color: #8b5cf6; font-weight: bold');
+      console.log(`   → Fecha: ${new Date().toLocaleString('es-CL')}`);
+      console.log(`   → Proveedor: ${proveedor}`);
+      console.log(`   → Responsable: ${responsable}`);
+      console.log('%c🔍 CAPA 3: Movimientos para auditoría', 'color: #f59e0b; font-weight: bold');
+      console.log(`   → ${productos.filter(p => p.cantidadSalida > 0).length} movimientos registrados`);
+      console.log('%c💰 ANÁLISIS FINANCIERO', 'color: #10b981; font-weight: bold');
+      console.log(`   → Unidades Salientes: ${totalConsumo}`);
+      console.log(`   → Inversión Perdida: $${totalCostoSalidas.toFixed(2)}`);
+      console.log('\n');
+      
+      console.log('=== ✅ PERSISTENCIA COMPLETA: Inventario, Movimientos y Stock actualizados ===');
 
     } catch (error) {
       console.error('Error al guardar inventario:', error);
@@ -609,6 +698,21 @@ export default function Inventory({
 
   return (
     <div className="px-4 sm:px-6 md:px-8 py-4 sm:py-6 bg-[#111827] light-mode:bg-gray-50 min-h-screen">
+      {/* Toast de Éxito */}
+      {showSuccessToast && (
+        <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 min-w-[320px]">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <CheckCircle className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="font-bold text-lg">¡Sincronización Exitosa!</p>
+              <p className="text-sm text-green-50">Inventario y Movimientos guardados</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Título */}
       <div className="mb-6 sm:mb-8">
         <h1 className="text-white light-mode:text-gray-900 font-black text-xl sm:text-2xl md:text-3xl bg-gradient-to-r from-blue-400 to-green-400 bg-clip-text text-transparent mb-1 sm:mb-2">

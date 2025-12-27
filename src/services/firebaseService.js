@@ -750,6 +750,19 @@ export const deleteMerma = async (docId) => {
  * 
  * NOTA CRÍTICA: NO incluye campo 'sede' - Eliminado para ROAL BURGER
  */
+// ============================================================================
+// PERSISTENCIA EN CASCADA - ARQUITECTURA DE 3 CAPAS
+// ============================================================================
+/**
+ * ACCIÓN 1: Guardar resumen en inventory_logs + movimientos individuales
+ * - Registra el resumen del cierre de inventario
+ * - Crea movimientos individuales para auditoría
+ * - Incluye costos y cálculos financieros
+ * 
+ * IMPORTANTE: Esta función se ejecuta en paralelo con:
+ * - saveInventoryHistory(): Para dashboard y analíticas
+ * - updateProduct(): Para actualizar stocks maestros
+ */
 export const addInventoryLog = async (userId, responsable, proveedor, productos, totalCostoSalidas = 0) => {
   try {
     // Validaciones estrictas (sin sede)
@@ -853,11 +866,14 @@ export const getInventoryLogs = async (userId) => {
 };
 
 // ============================================================================
-// HISTORIAL DE INVENTARIOS (inventory_history) - Trazabilidad completa
+// HISTORIAL DE INVENTARIOS - DASHBOARD DE INTELIGENCIA
 // ============================================================================
-
 /**
- * Guardar registro completo de inventario en historial para trazabilidad
+ * ACCIÓN 2: Guardar en inventory_history para dashboard y análisis
+ * - Alimenta las tarjetas de KPIs (Producto Estrella, Baja Rotación, Inversión)
+ * - Permite detección de anomalías (salidas 40% superiores al promedio)
+ * - Habilita re-descarga de PDFs históricos
+ * - Suscripción en tiempo real con subscribeToInventoryHistory()
  */
 export const saveInventoryHistory = async (userId, responsable, proveedor, productos, totalConsumo, totalCostoSalidas) => {
   try {
