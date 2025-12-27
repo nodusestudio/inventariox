@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import Mermas from './pages/Mermas';
 import Analytics from './pages/Analytics';
 import Audit from './pages/Audit';
+import Inventory from './pages/Inventory';
 import { Toaster, toast } from 'react-hot-toast';
 import { getProducts, getStock, getProviders, getOrders, getMovements, getCompanyData } from './services/firebaseService';
 
@@ -212,6 +213,14 @@ export default function App() {
       <Audit
         language={language}
         user={user}
+      />
+    ),
+    inventory: (
+      <Inventory
+        productsData={productsData}
+        providers={providersData}
+        language={language}
+        userId={user.uid}
       />
     ),
   };

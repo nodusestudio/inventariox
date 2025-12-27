@@ -43,7 +43,7 @@ export default function Sidebar({ currentPage, setCurrentPage, user, onLogout, l
     { name: 'dashboard', icon: LayoutDashboard, label: 'Panel' },
     { name: 'providers', icon: Users, label: 'Proveedores' },
     { name: 'stock', icon: Boxes, label: 'Productos' },
-    { name: 'audit', icon: ClipboardCheck, label: 'Inventario' },
+    { name: 'inventory', icon: ClipboardCheck, label: 'Inventario' },
     { name: 'movements', icon: TrendingUp, label: 'Movimientos' },
     { name: 'analytics', icon: BarChart3, label: 'Análisis Visual' },
     { name: 'orders', icon: ShoppingCart, label: 'Pedidos' },
