@@ -293,18 +293,31 @@ export default function Inventory({
 
   // ============ GUARDADO DIRECTO SIN DIÁLOGOS INTERMEDIOS ============
   const handleCloseInventory = async () => {
+    console.log('=== INICIO VALIDACIÓN ===');
+    console.log('selectedResponsible:', selectedResponsible);
+    console.log('selectedProvider:', selectedProvider);
+    
     // Validaciones profesionales con mensajes específicos
-    if (!selectedResponsible || selectedResponsible.trim() === '') {
+    const responsable = selectedResponsible?.trim() || '';
+    const proveedor = selectedProvider?.trim() || '';
+
+    console.log('responsable (trimmed):', responsable);
+    console.log('proveedor (trimmed):', proveedor);
+
+    if (!responsable) {
+      console.log('❌ Validación falló: Falta responsable');
       alert('Falta el nombre del responsable');
       return;
     }
 
-    if (!selectedProvider || selectedProvider.trim() === '') {
+    if (!proveedor) {
+      console.log('❌ Validación falló: Falta proveedor');
       alert('Falta seleccionar el proveedor');
       return;
     }
 
     if (!inventoryData || inventoryData.length === 0) {
+      console.log('❌ Validación falló: No hay productos');
       alert('No hay productos cargados para generar el reporte');
       return;
     }
@@ -313,14 +326,17 @@ export default function Inventory({
       item.stockFisico === '' || item.stockFisico === null || item.stockFisico === undefined
     );
     if (incomplete) {
+      console.log('❌ Validación falló: Stock físico incompleto');
       alert('Debes ingresar el stock físico de todos los productos');
       return;
     }
 
+    console.log('✅ Todas las validaciones pasaron');
+    console.log('Iniciando guardado...');
     setIsProcessing(true);
     
     try {
-      // Preparar array de productos con consumo
+      // Preparar array de productos con consumo (SIN campo 'sede')
       const productos = inventoryData.map(item => ({
         id: item.id,
         nombre: item.nombre,
@@ -331,18 +347,24 @@ export default function Inventory({
         observaciones: item.observaciones || ''
       }));
 
+      console.log('Productos preparados:', productos.length);
+
       // Ejecutar guardado en Firebase y actualización de stock EN PARALELO
+      console.log('Guardando en Firebase...');
       await Promise.all([
-        addInventoryLog(userId, selectedResponsible, selectedProvider, productos),
+        addInventoryLog(userId, responsable, proveedor, productos),
         ...inventoryData.map(item => 
           updateProduct(item.id, { stockActual: parseFloat(item.stockFisico) })
         )
       ]);
+      console.log('✅ Guardado en Firebase completado');
 
       // Generar y descargar PDF (operación asíncrona)
+      console.log('Generando PDF...');
       const doc = generatePDF(inventoryData);
-      const fileName = `Reporte_Inventario_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `Reporte_Inventario_${proveedor}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
+      console.log('✅ PDF generado:', fileName);
 
       // Limpiar formulario
       setSelectedProvider('');
@@ -350,13 +372,15 @@ export default function Inventory({
       setFilteredProducts([]);
       setInventoryData([]);
       setHasUnsavedChanges(false);
+      console.log('✅ Formulario limpiado');
 
-      // Mensaje de éxito exacto según especificación
-      alert('¡Información guardada con éxito!');
+      // Mensaje de éxito exacto según especificación del usuario
+      alert('¡Inventario registrado con éxito!');
+      console.log('=== PROCESO COMPLETADO CON ÉXITO ===');
 
     } catch (error) {
       console.error('Error al guardar inventario:', error);
-      // Mostrar el mensaje de error específico
+      // Mostrar el mensaje de error específico desde Firebase
       alert(error.message || 'Error al guardar. Verifica tu conexión e intenta nuevamente.');
     } finally {
       setIsProcessing(false);
