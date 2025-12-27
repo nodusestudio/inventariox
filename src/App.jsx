@@ -12,6 +12,7 @@ import Settings from './pages/Settings';
 import DatabasePage from './pages/Database';
 import Reports from './pages/Reports';
 import Mermas from './pages/Mermas';
+import Analytics from './pages/Analytics';
 import { Toaster, toast } from 'react-hot-toast';
 import { getProducts, getStock, getProviders, getOrders, getMovements, getCompanyData } from './services/firebaseService';
 
@@ -196,6 +197,12 @@ export default function App() {
     ),
     mermas: (
       <Mermas
+        language={language}
+        user={user}
+      />
+    ),
+    analytics: (
+      <Analytics
         language={language}
         user={user}
       />

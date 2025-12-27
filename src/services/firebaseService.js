@@ -247,6 +247,8 @@ export const getOrders = async (userId) => {
 // Recibir pedido con transacción (actualiza stock y estado de forma atómica)
 export const receiveOrderWithTransaction = async (orderId, orderItems, userId) => {
   try {
+    console.log('🔒 Iniciando transacción atómica para pedido:', orderId);
+    
     await runTransaction(db, async (transaction) => {
       // Leer el pedido
       const orderRef = doc(db, 'orders', orderId);
@@ -256,24 +258,53 @@ export const receiveOrderWithTransaction = async (orderId, orderItems, userId) =
         throw new Error('Pedido no encontrado');
       }
 
-      // Actualizar stock de cada producto
+      const orderData = orderDoc.data();
+      
+      // Verificar que el pedido esté en estado Pendiente
+      if (orderData.estado === 'Recibido') {
+        throw new Error('El pedido ya fue recibido anteriormente');
+      }
+
+      // Actualizar stock de cada producto de forma atómica
+      const productUpdates = [];
       for (const item of orderItems) {
         if (!item.id || !item.cantidadPedir || item.cantidadPedir <= 0) {
+          console.warn('⚠️ Item inválido omitido:', item);
           continue;
         }
 
         const productRef = doc(db, 'products', item.id);
         const productDoc = await transaction.get(productRef);
         
-        if (productDoc.exists()) {
-          const currentStock = productDoc.data().stockActual || 0;
-          const newStock = currentStock + item.cantidadPedir;
-          transaction.update(productRef, { stockActual: newStock });
+        if (!productDoc.exists()) {
+          console.warn('⚠️ Producto no encontrado:', item.id);
+          continue;
         }
+
+        const currentStock = productDoc.data().stockActual || 0;
+        const newStock = currentStock + item.cantidadPedir;
+        
+        transaction.update(productRef, { 
+          stockActual: newStock,
+          updatedAt: Timestamp.now()
+        });
+        
+        productUpdates.push({ 
+          id: item.id, 
+          oldStock: currentStock, 
+          newStock, 
+          quantity: item.cantidadPedir 
+        });
       }
 
-      // Actualizar estado del pedido a Recibido
-      transaction.update(orderRef, { estado: 'Recibido' });
+      // Actualizar estado del pedido a Recibido (todo o nada)
+      transaction.update(orderRef, { 
+        estado: 'Recibido',
+        fechaRecepcion: Timestamp.now(),
+        updatedAt: Timestamp.now()
+      });
+
+      console.log('✅ Transacción completada. Productos actualizados:', productUpdates.length);
     });
 
     // Registrar movimientos después de la transacción exitosa

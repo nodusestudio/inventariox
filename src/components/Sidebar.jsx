@@ -14,7 +14,8 @@ import {
   TrendingUp,
   FileText,
   LogOut,
-  AlertTriangle
+  AlertTriangle,
+  BarChart3
 } from 'lucide-react';
 import Logo from './Logo';
 import { t } from '../utils/translations';
@@ -42,6 +43,7 @@ export default function Sidebar({ currentPage, setCurrentPage, user, onLogout, l
     { name: 'providers', icon: Users, label: 'Proveedores' },
     { name: 'stock', icon: Boxes, label: 'Inventario' },
     { name: 'movements', icon: TrendingUp, label: 'Movimientos' },
+    { name: 'analytics', icon: BarChart3, label: 'Análisis Visual' },
     { name: 'orders', icon: ShoppingCart, label: 'Pedidos' },
     { name: 'mermas', icon: AlertTriangle, label: 'Mermas' },
     { name: 'reports', icon: FileText, label: 'Reportes' },

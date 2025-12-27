@@ -358,6 +358,7 @@ export default function Inventory({ productsData: initialData = [], setProductsD
                   </label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     name="costo"
                     value={formData.costo}
                     onChange={handleInputChange}
@@ -373,6 +374,7 @@ export default function Inventory({ productsData: initialData = [], setProductsD
                   </label>
                   <input
                     type="number"
+                    inputMode="decimal"
                     name="merma"
                     value={formData.merma}
                     onChange={handleInputChange}

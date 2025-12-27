@@ -251,6 +251,7 @@ export default function Mermas({ language = 'es', user }) {
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min="1"
                   value={formData.cantidad}
                   onChange={(e) => setFormData({ ...formData, cantidad: e.target.value })}

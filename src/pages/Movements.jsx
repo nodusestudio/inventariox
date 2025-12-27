@@ -105,12 +105,11 @@ export default function Movements({ language = 'es', user }) {
     return dateB - dateA;
   });
 
-  // Calcular resumen del mes actual
+  // Calcular resumen del mes actual o del periodo seleccionado
   const calculateMonthSummary = () => {
-    const now = new Date();
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const dateRange = filterMonth !== 'todos' ? getDateRange() : null;
     
-    const thisMonthMovements = movements.filter(m => {
+    const filteredByDate = dateRange ? movements.filter(m => {
       let movementDate;
       if (m.fecha?.toDate) {
         movementDate = m.fecha.toDate();
@@ -123,22 +122,26 @@ export default function Movements({ language = 'es', user }) {
       } else {
         return false;
       }
-      return movementDate >= thisMonthStart;
-    });
+      return movementDate >= dateRange.start && movementDate <= dateRange.end;
+    }) : movements;
 
-    const entradas = thisMonthMovements
+    const entradas = filteredByDate
       .filter(m => m.tipo === 'Entrada')
       .reduce((sum, m) => sum + (m.total || 0), 0);
     
-    const mermas = thisMonthMovements
+    const mermas = filteredByDate
       .filter(m => m.tipo === 'Merma')
       .reduce((sum, m) => sum + (m.total || 0), 0);
     
-    const salidas = thisMonthMovements
+    const salidas = filteredByDate
       .filter(m => m.tipo === 'Salida')
       .reduce((sum, m) => sum + (m.total || 0), 0);
 
-    return { entradas, mermas, salidas };
+    // Auditoría: Valor total comprado vs valor total mermado
+    const valorTotalComprado = entradas;
+    const valorTotalMermado = mermas;
+
+    return { entradas, mermas, salidas, valorTotalComprado, valorTotalMermado };
   };
 
   const summary = calculateMonthSummary();
@@ -177,7 +180,7 @@ export default function Movements({ language = 'es', user }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-green-400 text-xs font-semibold mb-1">
-                {language === 'es' ? 'Total Entradas Este Mes' : 'Total Entries This Month'}
+                {language === 'es' ? 'Total Entradas' : 'Total Entries'}
               </p>
               <p className="text-white font-bold text-xl">
                 ${formatCurrency(summary.entradas)}
@@ -191,7 +194,7 @@ export default function Movements({ language = 'es', user }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-red-400 text-xs font-semibold mb-1">
-                {language === 'es' ? 'Total Mermas Este Mes' : 'Total Waste This Month'}
+                {language === 'es' ? 'Total Mermas' : 'Total Waste'}
               </p>
               <p className="text-white font-bold text-xl">
                 ${formatCurrency(summary.mermas)}
@@ -205,13 +208,53 @@ export default function Movements({ language = 'es', user }) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-blue-400 text-xs font-semibold mb-1">
-                {language === 'es' ? 'Total Salidas Este Mes' : 'Total Exits This Month'}
+                {language === 'es' ? 'Total Salidas' : 'Total Exits'}
               </p>
               <p className="text-white font-bold text-xl">
                 ${formatCurrency(summary.salidas)}
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-blue-400 opacity-50" />
+          </div>
+        </div>
+      </div>
+
+      {/* Dashboard de Auditoría */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <div className="bg-gradient-to-br from-cyan-900/20 to-cyan-800/10 border border-cyan-700/50 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-cyan-400 text-xs font-semibold mb-1">
+                {language === 'es' ? '💰 Valor Total Comprado' : '💰 Total Purchase Value'}
+              </p>
+              <p className="text-white font-bold text-2xl">
+                ${formatCurrency(summary.valorTotalComprado)}
+              </p>
+              <p className="text-cyan-500/70 text-xs mt-1">
+                {language === 'es' ? 'Inversión en mercancía' : 'Merchandise investment'}
+              </p>
+            </div>
+            <ArrowUp className="w-10 h-10 text-cyan-400 opacity-50" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-orange-900/20 to-orange-800/10 border border-orange-700/50 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-400 text-xs font-semibold mb-1">
+                {language === 'es' ? '⚠️ Valor Total Mermado' : '⚠️ Total Waste Value'}
+              </p>
+              <p className="text-white font-bold text-2xl">
+                ${formatCurrency(summary.valorTotalMermado)}
+              </p>
+              <p className="text-orange-500/70 text-xs mt-1">
+                {language === 'es' 
+                  ? `${summary.valorTotalComprado > 0 ? ((summary.valorTotalMermado / summary.valorTotalComprado) * 100).toFixed(1) : 0}% del total comprado`
+                  : `${summary.valorTotalComprado > 0 ? ((summary.valorTotalMermado / summary.valorTotalComprado) * 100).toFixed(1) : 0}% of total purchased`
+                }
+              </p>
+            </div>
+            <ArrowDown className="w-10 h-10 text-orange-400 opacity-50" />
           </div>
         </div>
       </div>

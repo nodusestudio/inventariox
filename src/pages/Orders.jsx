@@ -654,6 +654,7 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`;
                             <label className="text-xs text-gray-400 light-mode:text-gray-600 block mb-0.5">Actual:</label>
                             <input
                               type="number"
+                              inputMode="numeric"
                               min="0"
                               value={item.stockEnMano || 0}
                               onChange={(e) => handleUpdateStockEnMano(item.id, e.target.value)}

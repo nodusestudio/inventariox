@@ -560,6 +560,7 @@ export default function Stock({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     name="costo"
                     value={formData.costo}
                     onChange={handleInputChange}
@@ -574,6 +575,7 @@ export default function Stock({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     name="stockActual"
                     value={formData.stockActual}
                     onChange={handleInputChange}
@@ -588,6 +590,7 @@ export default function Stock({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     name="stockMinimo"
                     value={formData.stockMinimo}
                     onChange={handleInputChange}
@@ -602,6 +605,7 @@ export default function Stock({
                   </label>
                   <input
                     type="number"
+                    inputMode="numeric"
                     name="stockCompra"
                     value={formData.stockCompra}
                     onChange={handleInputChange}
