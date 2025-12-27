@@ -85,10 +85,7 @@ export const updateProduct = async (docId, productData) => {
       updatedAt: Timestamp.now()
     };
 
-    // Validar que los campos requeridos no estén vacíos
-    if (!sanitizedData.nombre || !sanitizedData.proveedor) {
-      throw new Error('Nombre y proveedor son obligatorios');
-    }
+    // ✅ NO validar nombre/proveedor aquí - updateProduct solo actualiza stocks existentes
 
     // 🔥 FILTRO DE OBJETOS: Eliminar cualquier campo undefined/null antes de updateDoc
     const cleanData = Object.fromEntries(
@@ -722,11 +719,12 @@ export const deleteMerma = async (docId) => {
 
 // ============================================================================
 // OPERACIONES DE INVENTARIO DIARIO (inventory_logs)
+// NOTA CRÍTICA: NO incluye campo 'sede' - Eliminado para ROAL BURGER
 // ============================================================================
 
 export const addInventoryLog = async (userId, responsable, proveedor, productos) => {
   try {
-    // Validaciones estrictas
+    // Validaciones estrictas (sin sede)
     if (!responsable || responsable.trim() === '') {
       throw new Error('Falta el nombre del responsable');
     }
@@ -743,6 +741,13 @@ export const addInventoryLog = async (userId, responsable, proveedor, productos)
     );
     const productosConsumo = productos.filter(item => item.consumo > 0).length;
 
+    console.log('📦 Firebase - Objeto a guardar (SIN sede):');
+    console.log('   - Responsable:', responsable.trim());
+    console.log('   - Proveedor:', proveedor.trim());
+    console.log('   - Total Productos:', productos.length);
+    console.log('   - Consumo Total:', consumoTotal);
+
+    // Objeto limpio para Firebase: responsable, proveedor, productos, fecha, totalConsumo
     const docRef = await addDoc(collection(db, 'inventory_logs'), {
       responsable: responsable.trim(),
       proveedor: proveedor.trim(),
@@ -753,10 +758,13 @@ export const addInventoryLog = async (userId, responsable, proveedor, productos)
       userId,
       fecha_hora: Timestamp.now(),
       createdAt: Timestamp.now()
+      // ❌ NO incluye 'sede' - Campo eliminado permanentemente
     });
+    
+    console.log('✅ Firebase - Documento guardado con ID:', docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error('Error adding inventory log:', error);
+    console.error('❌ Firebase - Error al guardar:', error);
     throw error;
   }
 };

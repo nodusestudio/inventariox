@@ -291,52 +291,57 @@ export default function Inventory({
     return doc;
   };
 
-  // ============ GUARDADO DIRECTO SIN DIÁLOGOS INTERMEDIOS ============
+  // ============ GUARDADO DIRECTO - LIMPIEZA PROFUNDA ============
   const handleCloseInventory = async () => {
     console.log('=== INICIO VALIDACIÓN ===');
-    console.log('selectedResponsible:', selectedResponsible);
-    console.log('selectedProvider:', selectedProvider);
     
-    // Validaciones profesionales con mensajes específicos
-    const responsable = selectedResponsible?.trim() || '';
-    const proveedor = selectedProvider?.trim() || '';
+    // CAPTURA FORZADA: Obtener valores directamente del estado
+    const responsable = (selectedResponsible || '').trim();
+    const proveedor = (selectedProvider || '').trim();
+    
+    console.log('Responsable capturado:', responsable);
+    console.log('Proveedor capturado:', proveedor);
+    console.log('Productos cargados:', inventoryData.length);
 
-    console.log('responsable (trimmed):', responsable);
-    console.log('proveedor (trimmed):', proveedor);
-
+    // VALIDACIÓN 1: Responsable (solo texto, sin sede)
     if (!responsable) {
-      console.log('❌ Validación falló: Falta responsable');
+      console.log('❌ Falta el nombre del responsable');
       alert('Falta el nombre del responsable');
       return;
     }
 
+    // VALIDACIÓN 2: Proveedor (solo texto, sin sede)
     if (!proveedor) {
-      console.log('❌ Validación falló: Falta proveedor');
+      console.log('❌ Falta seleccionar el proveedor');
       alert('Falta seleccionar el proveedor');
       return;
     }
 
+    // VALIDACIÓN 3: Productos cargados
     if (!inventoryData || inventoryData.length === 0) {
-      console.log('❌ Validación falló: No hay productos');
+      console.log('❌ No hay productos');
       alert('No hay productos cargados para generar el reporte');
       return;
     }
 
+    // VALIDACIÓN 4: Stock físico completo
     const incomplete = inventoryData.some(item => 
       item.stockFisico === '' || item.stockFisico === null || item.stockFisico === undefined
     );
     if (incomplete) {
-      console.log('❌ Validación falló: Stock físico incompleto');
+      console.log('❌ Stock físico incompleto');
       alert('Debes ingresar el stock físico de todos los productos');
       return;
     }
 
-    console.log('✅ Todas las validaciones pasaron');
-    console.log('Iniciando guardado...');
+    console.log('✅ TODAS LAS VALIDACIONES PASARON');
+    
+    // Mostrar estado de carga
     setIsProcessing(true);
+    console.log('Cargando...');
     
     try {
-      // Preparar array de productos con consumo (SIN campo 'sede')
+      // FIREBASE CLEAN: Objeto estrictamente limpio sin 'sede'
       const productos = inventoryData.map(item => ({
         id: item.id,
         nombre: item.nombre,
@@ -347,9 +352,17 @@ export default function Inventory({
         observaciones: item.observaciones || ''
       }));
 
-      console.log('Productos preparados:', productos.length);
+      const totalConsumo = productos.reduce((sum, item) => 
+        sum + (item.consumo > 0 ? item.consumo : 0), 0
+      );
 
-      // Ejecutar guardado en Firebase y actualización de stock EN PARALELO
+      console.log('Objeto para Firebase (SIN sede):');
+      console.log('- Responsable:', responsable);
+      console.log('- Proveedor:', proveedor);
+      console.log('- Total Productos:', productos.length);
+      console.log('- Consumo Total:', totalConsumo);
+
+      // FLUJO DIRECTO: Guardar en Firebase EN PARALELO
       console.log('Guardando en Firebase...');
       await Promise.all([
         addInventoryLog(userId, responsable, proveedor, productos),
@@ -443,7 +456,11 @@ export default function Inventory({
             </label>
             <select
               value={selectedProvider}
-              onChange={(e) => setSelectedProvider(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                console.log('Proveedor seleccionado:', value);
+                setSelectedProvider(value);
+              }}
               className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
             >
               <option value="">{language === 'es' ? 'Seleccionar...' : 'Select...'}</option>
@@ -461,7 +478,11 @@ export default function Inventory({
             <input
               type="text"
               value={selectedResponsible}
-              onChange={(e) => setSelectedResponsible(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                console.log('Responsable ingresado:', value);
+                setSelectedResponsible(value);
+              }}
               placeholder={language === 'es' ? 'Nombre del responsable' : 'Responsible name'}
               className="w-full px-4 py-2 bg-gray-700 light-mode:bg-gray-100 border border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 focus:border-blue-500 focus:outline-none"
             />
