@@ -4,7 +4,7 @@ import { auth } from '../config/firebase';
 import { updatePassword, deleteUser, signOut } from 'firebase/auth';
 import Swal from 'sweetalert2';
 import { toast } from 'react-hot-toast';
-import { deleteAllUserData, uploadCompanyLogo } from '../services/firebaseService';
+import { deleteAllUserData, uploadCompanyLogo, getCompanyData, setCompanyData as saveCompanyData } from '../services/firebaseService';
 
 export default function Settings({
   language = 'es',
@@ -15,23 +15,25 @@ export default function Settings({
   setCompanyData,
   onLogout = () => {}
 }) {
-  const [savedData, setSavedData] = useState(companyData || {
-    nombre: 'Mi Empresa',
+  const [savedData, setSavedData] = useState({
+    nombre: '',
     rfc: '',
-    direccion: 'Dirección del Establecimiento',
+    direccion: '',
+    direccion2: '',
     telefono: '',
-    nombreResponsable: 'Responsable',
-    ubicacion: 'Ubicación / Sucursal',
+    nombreResponsable: '',
+    ubicacion: '',
     logo: ''
   });
 
-  const [formData, setFormData] = useState(companyData || {
-    nombre: 'Mi Empresa',
+  const [formData, setFormData] = useState({
+    nombre: '',
     rfc: '',
-    direccion: 'Dirección del Establecimiento',
+    direccion: '',
+    direccion2: '',
     telefono: '',
-    nombreResponsable: 'Responsable',
-    ubicacion: 'Ubicación / Sucursal',
+    nombreResponsable: '',
+    ubicacion: '',
     logo: ''
   });
 
@@ -43,14 +45,67 @@ export default function Settings({
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Cargar datos desde Firestore al iniciar
+  useEffect(() => {
+    if (!auth.currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    const loadCompanyData = async () => {
+      try {
+        setLoading(true);
+        const data = await getCompanyData(auth.currentUser.uid);
+        
+        // Combinar con valores por defecto
+        const completeData = {
+          nombre: data.nombre || '',
+          rfc: data.rfc || '',
+          direccion: data.direccion || '',
+          direccion2: data.direccion2 || '',
+          telefono: data.telefono || '',
+          nombreResponsable: data.nombreResponsable || '',
+          ubicacion: data.ubicacion || '',
+          logo: data.logo || ''
+        };
+        
+        setSavedData(completeData);
+        setFormData(completeData);
+        
+        // Actualizar estado global
+        if (setCompanyData) {
+          setCompanyData(completeData);
+        }
+      } catch (error) {
+        console.error('Error loading company data:', error);
+        toast.error('❌ Error al cargar datos de la empresa');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCompanyData();
+  }, [auth.currentUser?.uid]);
 
   // Sincronizar con companyData cuando cambia desde otra sección
   useEffect(() => {
-    if (companyData) {
-      setSavedData(companyData);
-      setFormData(companyData);
+    if (companyData && !loading) {
+      const completeData = {
+        nombre: companyData.nombre || '',
+        rfc: companyData.rfc || '',
+        direccion: companyData.direccion || '',
+        direccion2: companyData.direccion2 || '',
+        telefono: companyData.telefono || '',
+        nombreResponsable: companyData.nombreResponsable || '',
+        ubicacion: companyData.ubicacion || '',
+        logo: companyData.logo || ''
+      };
+      setSavedData(completeData);
+      setFormData(completeData);
     }
-  }, [companyData]);
+  }, [companyData, loading]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -91,17 +146,34 @@ export default function Settings({
     }
   };
 
-  const handleSave = () => {
-    setSavedData(formData);
-    setCompanyData(formData);
-    setTheme(tempTheme);
-    setLanguage(tempLanguage);
-    setSaveMessage('✓ Configuración guardada exitosamente');
-    localStorage.setItem('inventariox_company', JSON.stringify(formData));
-    localStorage.setItem('inventariox_theme', tempTheme);
-    localStorage.setItem('inventariox_language', tempLanguage);
-    setIsEditing(false);
-    setTimeout(() => setSaveMessage(''), 3000);
+  const handleSave = async () => {
+    if (!auth.currentUser) {
+      toast.error('❌ Debes iniciar sesión');
+      return;
+    }
+
+    try {
+      // Guardar en Firestore con merge
+      await saveCompanyData(auth.currentUser.uid, formData);
+      
+      // Actualizar estados locales
+      setSavedData(formData);
+      setCompanyData(formData);
+      setTheme(tempTheme);
+      setLanguage(tempLanguage);
+      
+      // Guardar preferencias en localStorage
+      localStorage.setItem('inventariox_theme', tempTheme);
+      localStorage.setItem('inventariox_language', tempLanguage);
+      
+      setSaveMessage('✓ Configuración guardada exitosamente');
+      setIsEditing(false);
+      toast.success('✓ Datos guardados correctamente');
+      setTimeout(() => setSaveMessage(''), 3000);
+    } catch (error) {
+      console.error('Error saving company data:', error);
+      toast.error('❌ Error al guardar la configuración');
+    }
   };
 
   const handleCancel = () => {
@@ -287,10 +359,22 @@ export default function Settings({
                   {savedData.direccion && (
                     <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
                       <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
-                        Dirección
+                        Dirección Principal
                       </p>
                       <p className="text-white light-mode:text-gray-900 leading-relaxed">
                         {savedData.direccion}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Dirección 2 (Opcional) */}
+                  {savedData.direccion2 && (
+                    <div className="p-5 bg-[#111827] light-mode:bg-gray-50 rounded-lg border border-gray-600 light-mode:border-gray-300">
+                      <p className="text-xs text-gray-400 light-mode:text-gray-600 font-bold mb-2 uppercase tracking-wide">
+                        Dirección 2 (Opcional)
+                      </p>
+                      <p className="text-white light-mode:text-gray-900 leading-relaxed">
+                        {savedData.direccion2}
                       </p>
                     </div>
                   )}
@@ -383,7 +467,7 @@ export default function Settings({
                   {/* Dirección */}
                   <div>
                     <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
-                      Dirección
+                      Dirección Principal
                     </label>
                     <textarea
                       name="direccion"
@@ -393,6 +477,22 @@ export default function Settings({
                       className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none focus:ring-2 focus:ring-[#206DDA]/30 transition-all resize-none"
                       placeholder="Ej: Calle Principal 123, Ciudad"
                     />
+                  </div>
+
+                  {/* Dirección 2 (Opcional) */}
+                  <div>
+                    <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                      Dirección 2 (Opcional)
+                    </label>
+                    <textarea
+                      name="direccion2"
+                      value={formData.direccion2 || ''}
+                      onChange={handleInputChange}
+                      rows="2"
+                      className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none focus:ring-2 focus:ring-[#206DDA]/30 transition-all resize-none"
+                      placeholder="Ej: Sucursal 2 - Av. Libertad 456, Ciudad"
+                    />
+                    <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-2">Se usará como opción adicional al crear pedidos</p>
                   </div>
 
                   {/* Teléfono */}

@@ -15,6 +15,7 @@ export default function Mermas({ language = 'es', user }) {
     productoNombre: '',
     cantidad: 1,
     motivo: '',
+    observaciones: '',
     costo: 0
   });
 
@@ -68,6 +69,12 @@ export default function Mermas({ language = 'es', user }) {
       return;
     }
 
+    // Validar que si el motivo es 'Otro', se haya ingresado observaciones
+    if (formData.motivo === 'Otro' && !formData.observaciones.trim()) {
+      toast.error('❌ Debes especificar las observaciones para motivo "Otro"');
+      return;
+    }
+
     const product = products.find(p => p.id === formData.productoId);
     if (!product) {
       toast.error('❌ Producto no encontrado');
@@ -86,6 +93,7 @@ export default function Mermas({ language = 'es', user }) {
         productoNombre: formData.productoNombre,
         cantidad: parseInt(formData.cantidad),
         motivo: formData.motivo,
+        observaciones: formData.observaciones || '',
         costo: formData.costo,
         valorTotal: formData.costo * parseInt(formData.cantidad),
         fecha: new Date().toISOString().split('T')[0]
@@ -109,6 +117,7 @@ export default function Mermas({ language = 'es', user }) {
         productoNombre: '',
         cantidad: 1,
         motivo: '',
+        observaciones: '',
         costo: 0
       });
       setIsAdding(false);
@@ -207,7 +216,7 @@ export default function Mermas({ language = 'es', user }) {
               <button
                 onClick={() => {
                   setIsAdding(false);
-                  setFormData({ productoId: '', productoNombre: '', cantidad: 1, motivo: '', costo: 0 });
+                  setFormData({ productoId: '', productoNombre: '', cantidad: 1, motivo: '', observaciones: '', costo: 0 });
                 }}
                 className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors"
               >
@@ -266,6 +275,25 @@ export default function Mermas({ language = 'es', user }) {
                   ))}
                 </select>
               </div>
+
+              {/* Observaciones (solo si motivo es 'Otro') */}
+              {formData.motivo === 'Otro' && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                    Observaciones *
+                  </label>
+                  <textarea
+                    value={formData.observaciones}
+                    onChange={(e) => setFormData({ ...formData, observaciones: e.target.value })}
+                    rows="3"
+                    className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none resize-none"
+                    placeholder="Describe detalladamente qué sucedió con el producto..."
+                  />
+                  <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-2">
+                    Esta información se guardará en los registros y aparecerá en los reportes
+                  </p>
+                </div>
+              )}
 
               {/* Botones */}
               <div className="md:col-span-2 flex gap-4">

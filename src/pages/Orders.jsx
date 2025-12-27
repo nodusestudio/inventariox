@@ -6,7 +6,7 @@ import {
   getOrders,
   addOrder,
   updateOrder,
-  deleteOrder,
+  deleteOrderWithMovements,
   getProducts,
   getProviders,
   updateProduct,
@@ -30,6 +30,7 @@ export default function Orders({
     proveedor: '',
     fechaEntrega: '',
     horaEntrega: '',
+    direccionEntrega: '',
     items: []
   });
 
@@ -227,21 +228,44 @@ export default function Orders({
   };
 
   // Eliminar pedido
-    const handleDeleteOrder = async (orderId) => {
-      try {
-        console.log('🗑️ Eliminando pedido:', orderId);
-        await deleteOrder(orderId);
-        setOrders(orders.filter(o => o.id !== orderId));
-        console.log('✅ Pedido eliminado exitosamente de Firestore y estado local');
-        setConfirmDelete(null); // Cerrar modal
-        toast.success('Pedido eliminado exitosamente');
-      } catch (error) {
-        console.error('❌ Error al eliminar pedido:', error);
-        toast.error('Error al eliminar el pedido');
-        setOrders(orders);
-        setConfirmDelete(null); // Cerrar modal incluso si hay error
+  const handleDeleteOrder = async (orderId) => {
+    if (!orderId) {
+      toast.error('❌ ID de pedido inválido');
+      setConfirmDelete(null);
+      return;
+    }
+
+    try {
+      const loadingToast = toast.loading('Eliminando pedido...');
+      console.log('🗑️ Eliminando pedido y movimientos relacionados:', orderId);
+      
+      // Eliminar pedido y sus movimientos relacionados
+      await deleteOrderWithMovements(orderId, user.uid);
+      
+      // Actualizar estado local solo si la eliminación fue exitosa
+      setOrders(prevOrders => prevOrders.filter(o => o.id !== orderId));
+      
+      toast.dismiss(loadingToast);
+      toast.success('✓ Pedido eliminado exitosamente');
+      console.log('✅ Pedido y movimientos eliminados correctamente');
+      setConfirmDelete(null);
+    } catch (error) {
+      console.error('❌ Error al eliminar pedido:', error);
+      
+      // Mensajes de error específicos
+      if (error.code === 'permission-denied') {
+        toast.error('❌ No tienes permisos para eliminar este pedido');
+      } else if (error.code === 'not-found') {
+        toast.error('❌ El pedido no existe');
+      } else if (error.message?.includes('network')) {
+        toast.error('❌ Error de conexión. Verifica tu internet');
+      } else {
+        toast.error('❌ Error al eliminar el pedido');
       }
-    };
+      
+      setConfirmDelete(null);
+    }
+  };
 
   // Recibir mercancía - actualizar inventario con transacción atómica
   const handleReceiveOrder = async (orderId) => {
@@ -365,6 +389,9 @@ export default function Orders({
       // Obtener hora
       const hora = order.horaEntrega || 'Por confirmar';
 
+      // Obtener dirección de entrega
+      const direccion = order.direccionEntrega || companyData?.direccion || '';
+
       // Validar y construir lista de items
       let itemsList = '';
       if (order.items && Array.isArray(order.items) && order.items.length > 0) {
@@ -390,20 +417,28 @@ export default function Orders({
       }
 
       // Construir mensaje profesional con formato exacto
-      const message = encodeURIComponent(
-        `Hola ${supplierName}, te adjunto el pedido de *${empresa}*:
+      let message = `Hola ${supplierName}, te adjunto el pedido de *${empresa}*:
 
-El pedido lo necesito para el *${fechaFormato}* a las *${hora}*
+El pedido lo necesito para el *${fechaFormato}* a las *${hora}*`;
+      
+      // Añadir dirección si existe
+      if (direccion) {
+        message += `
+
+*Dirección de entrega:*
+${direccion}`;
+      }
+      
+      message += `
 
 *Detalle del pedido:*
 ${decodeURIComponent(itemsList)}
 
 Me confirmas por favor el total, gracias.
 
-_Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
-      );
+_Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`;
 
-      return message;
+      return encodeURIComponent(message);
     } catch (error) {
       console.error('Error generating WhatsApp message:', error);
       return '';
@@ -480,7 +515,7 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
               <button
                 onClick={() => {
                   setIsAddingPedido(false);
-                  setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', items: [] });
+                  setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', direccionEntrega: '', items: [] });
                 }}
                 className="p-2 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded-lg transition-colors"
               >
@@ -536,6 +571,34 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                   />
                 </div>
               </div>
+
+              {/* Selector de Dirección de Entrega */}
+              {(companyData?.direccion || companyData?.direccion2) && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-300 light-mode:text-gray-700 mb-3 uppercase tracking-wide">
+                    📍 Dirección de Entrega
+                  </label>
+                  <select
+                    value={formData.direccionEntrega}
+                    onChange={(e) => setFormData({ ...formData, direccionEntrega: e.target.value })}
+                    className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 font-semibold focus:border-[#206DDA] focus:outline-none"
+                  >
+                    {companyData?.direccion && (
+                      <option value={companyData.direccion}>
+                        {companyData.direccion}
+                      </option>
+                    )}
+                    {companyData?.direccion2 && (
+                      <option value={companyData.direccion2}>
+                        {companyData.direccion2}
+                      </option>
+                    )}
+                  </select>
+                  <p className="text-xs text-gray-400 light-mode:text-gray-600 mt-2">
+                    Esta dirección se incluirá en el mensaje de WhatsApp
+                  </p>
+                </div>
+              )}
 
               {/* Selector de Productos */}
               {formData.proveedor && (
@@ -680,7 +743,7 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`
                 <button
                   onClick={() => {
                     setIsAddingPedido(false);
-                    setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', items: [] });
+                    setFormData({ proveedor: '', fechaEntrega: '', horaEntrega: '', direccionEntrega: '', items: [] });
                   }}
                   className="w-full sm:flex-1 px-6 py-4 sm:py-3 bg-gray-700 light-mode:bg-gray-300 hover:bg-gray-600 light-mode:hover:bg-gray-400 text-white light-mode:text-gray-900 font-bold rounded-lg transition-all active:scale-95 text-base sm:text-sm"
                 >

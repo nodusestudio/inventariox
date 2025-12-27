@@ -280,7 +280,8 @@ export const receiveOrderWithTransaction = async (orderId, orderItems, userId) =
             item.nombre || item.productName || 'Producto',
             item.cantidadPedir,
             item.costo || 0,
-            item.id
+            item.id,
+            orderId  // Pasar orderId para vincular el movimiento
           );
         }
       }
@@ -306,8 +307,57 @@ export const updateOrder = async (docId, orderData) => {
 export const deleteOrder = async (docId) => {
   try {
     await deleteDoc(doc(db, 'orders', docId));
+    return { success: true };
   } catch (error) {
     console.error('Error deleting order:', error);
+    throw error;
+  }
+};
+
+// Eliminar movimientos relacionados con un pedido específico
+export const deleteMovementsByOrderId = async (userId, orderId) => {
+  try {
+    // Buscar todos los movimientos del usuario
+    const q = query(
+      collection(db, 'movements'),
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    
+    let deletedCount = 0;
+    
+    // Eliminar movimientos relacionados con el pedido
+    for (const movementDoc of querySnapshot.docs) {
+      const data = movementDoc.data();
+      // Verificar si el movimiento está relacionado con el pedido
+      if (data.orderId === orderId || data.relatedOrderId === orderId) {
+        await deleteDoc(doc(db, 'movements', movementDoc.id));
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount;
+  } catch (error) {
+    console.error('Error deleting movements by order:', error);
+    // No lanzar error para no afectar la eliminación del pedido
+    return 0;
+  }
+};
+
+// Eliminar pedido y sus movimientos relacionados
+export const deleteOrderWithMovements = async (docId, userId) => {
+  try {
+    // Primero eliminar el pedido
+    await deleteDoc(doc(db, 'orders', docId));
+    
+    // Luego eliminar movimientos relacionados
+    if (userId) {
+      await deleteMovementsByOrderId(userId, docId);
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting order with movements:', error);
     throw error;
   }
 };
@@ -331,7 +381,7 @@ export const addMovement = async (userId, movementData) => {
 };
 
 // Función auxiliar para crear movimiento automáticamente
-export const createMovement = async (userId, tipo, productoNombre, cantidad, costoUnitario, productoId = null) => {
+export const createMovement = async (userId, tipo, productoNombre, cantidad, costoUnitario, productoId = null, orderId = null, observaciones = '') => {
   try {
     const total = cantidad * costoUnitario;
     const movementData = {
@@ -343,6 +393,18 @@ export const createMovement = async (userId, tipo, productoNombre, cantidad, cos
       costoUnitario,
       total
     };
+    
+    // Agregar orderId si existe
+    if (orderId) {
+      movementData.orderId = orderId;
+      movementData.relatedOrderId = orderId;
+    }
+    
+    // Agregar observaciones si existen
+    if (observaciones && observaciones.trim()) {
+      movementData.observaciones = observaciones.trim();
+    }
+    
     return await addMovement(userId, movementData);
   } catch (error) {
     console.error('Error creating movement:', error);
@@ -374,23 +436,28 @@ export const setCompanyData = async (userId, companyData) => {
     const q = query(collection(db, 'company'), where('userId', '==', userId));
     const querySnapshot = await getDocs(q);
     
+    let docRef;
     if (querySnapshot.empty) {
       // Crear nuevo documento de empresa
-      await addDoc(collection(db, 'company'), {
+      docRef = await addDoc(collection(db, 'company'), {
         ...companyData,
         userId,
         createdAt: Timestamp.now()
       });
     } else {
-      // Actualizar documento existente
+      // Actualizar documento existente con merge para no sobrescribir todo
       const docId = querySnapshot.docs[0].id;
       const companyRef = doc(db, 'company', docId);
-      await updateDoc(companyRef, companyData);
+      await setDoc(companyRef, {
+        ...companyData,
+        userId,
+        updatedAt: Timestamp.now()
+      }, { merge: true });
     }
     return true;
   } catch (error) {
     console.error('Error setting company data:', error);
-    return false;
+    throw error;
   }
 };
 
@@ -445,7 +512,9 @@ export const addMerma = async (userId, mermaData) => {
         mermaData.productoNombre,
         mermaData.cantidad,
         mermaData.costo,
-        mermaData.productoId
+        mermaData.productoId,
+        null,
+        mermaData.observaciones || ''
       );
     }
     
