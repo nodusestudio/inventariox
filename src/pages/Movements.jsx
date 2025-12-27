@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUp, ArrowDown, Trash2, Calendar, Package, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { ArrowUp, ArrowDown, Calendar, Package, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { getMovements } from '../services/firebaseService';
 import { toast } from 'react-hot-toast';
 
@@ -431,30 +431,11 @@ export default function Movements({ language = 'es', user }) {
                       }`}>
                         {isEntrada ? '+' : '-'}{movement.cantidad}
                       </td>
-                      <td className="px-4 py-3 text-gray-300 light-mode:text-gray-900">
-                        {movement.motivo ? (
-                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                            movement.motivo === 'venta' 
-                              ? 'bg-blue-900/30 text-blue-400'
-                              : movement.motivo === 'desecho'
-                              ? 'bg-yellow-900/30 text-yellow-400'
-                              : 'bg-purple-900/30 text-purple-400'
-                          }`}>
-                            {movement.motivo === 'venta' && (language === 'es' ? 'Venta' : 'Sale')}
-                            {movement.motivo === 'desecho' && (language === 'es' ? 'Desecho' : 'Disposal')}
-                            {movement.motivo === 'ajuste' && (language === 'es' ? 'Ajuste' : 'Adjustment')}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500 light-mode:text-gray-400 text-xs">-</span>
-                        )}
+                      <td className="px-4 py-3 text-right text-gray-300 light-mode:text-gray-900">
+                        ${formatCurrency(movement.costoUnitario || 0)}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => setConfirmDelete(movement.id)}
-                          className="p-1 hover:bg-gray-700 light-mode:hover:bg-gray-200 rounded transition-colors inline-flex items-center justify-center"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-400 light-mode:text-red-600" />
-                        </button>
+                      <td className="px-4 py-3 text-right font-semibold text-green-400 light-mode:text-green-600">
+                        ${formatCurrency(movement.total || 0)}
                       </td>
                     </tr>
                   );
