@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { FileCheck, Printer, Save, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { addInventoryLog, getTodayInventoryLog } from '../services/firebaseService';
+import { addInventoryLog, getTodayInventoryLog, updateProduct } from '../services/firebaseService';
 import ConfirmationModal from '../components/ConfirmationModal';
 
 
@@ -82,26 +82,46 @@ export default function Inventory({
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     
-    // Encabezado
-    doc.setFontSize(18);
+    // Logo y Encabezado de Empresa
+    doc.setFillColor(220, 53, 69); // Rojo corporativo
+    doc.rect(0, 0, pageWidth, 35, 'F');
+    
+    doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
-    doc.text('INFORME DE INVENTARIO', pageWidth / 2, 20, { align: 'center' });
+    doc.setTextColor(255, 255, 255);
+    doc.text('ROAL BURGER', pageWidth / 2, 15, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    doc.text('CONTROL DE INVENTARIO', pageWidth / 2, 25, { align: 'center' });
     
     // Información general
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
     const now = new Date();
     const fecha = now.toLocaleDateString('es-CL');
     const hora = now.toLocaleTimeString('es-CL');
     
-    doc.text(`Fecha: ${fecha} ${hora}`, 14, 35);
-    doc.text(`Proveedor: ${selectedProvider}`, 14, 42);
-    doc.text(`Responsable: ${selectedResponsible}`, 14, 49);
-    doc.text(`Sede: ${selectedSede}`, 14, 56);
+    doc.text(`Fecha: ${fecha} ${hora}`, 14, 45);
+    doc.text(`Proveedor: ${selectedProvider}`, 14, 52);
+    doc.text(`Responsable: ${selectedResponsible}`, 14, 59);
+    doc.text(`Sede: ${selectedSede}`, 14, 66);
+    
+    // Estadísticas a la derecha
+    const descuadresTotal = data.filter(item => item.diferencia !== 0).length;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text(`Total Productos: ${data.length}`, pageWidth - 14, 52, { align: 'right' });
+    doc.text(`Descuadres: ${descuadresTotal}`, pageWidth - 14, 59, { align: 'right' });
+    doc.setTextColor(descuadresTotal === 0 ? [34, 139, 34] : [220, 53, 69]);
+    doc.text(`Estado: ${descuadresTotal === 0 ? 'CORRECTO ✓' : 'CON DIFERENCIAS ⚠️'}`, pageWidth - 14, 66, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
     
     // Separador
-    doc.setDrawColor(200, 200, 200);
-    doc.line(14, 60, pageWidth - 14, 60);
+    doc.setDrawColor(220, 53, 69);
+    doc.setLineWidth(0.5);
+    doc.line(14, 70, pageWidth - 14, 70);
     
     // Tabla de productos
     const tableData = data.map(item => [
@@ -114,19 +134,23 @@ export default function Inventory({
     ]);
     
     doc.autoTable({
-      startY: 65,
+      startY: 75,
       head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Diferencia', 'Estado']],
       body: tableData,
-      theme: 'grid',
+      theme: 'striped',
       headStyles: { 
-        fillColor: [32, 109, 218],
+        fillColor: [220, 53, 69], // Rojo ROAL BURGER
         textColor: 255,
         fontStyle: 'bold',
-        fontSize: 9
+        fontSize: 9,
+        halign: 'center'
       },
       bodyStyles: { 
         fontSize: 8,
         cellPadding: 3
+      },
+      alternateRowStyles: {
+        fillColor: [245, 245, 245]
       },
       columnStyles: {
         0: { cellWidth: 60 },
@@ -143,6 +167,15 @@ export default function Inventory({
           if (diff !== 0) {
             data.cell.styles.textColor = diff > 0 ? [34, 139, 34] : [220, 53, 69];
             data.cell.styles.fontStyle = 'bold';
+          }
+        }
+        // Colorear el estado
+        if (data.section === 'body' && data.column.index === 5) {
+          const estado = data.cell.text[0];
+          if (estado === '⚠️') {
+            data.cell.styles.fillColor = [255, 243, 205];
+          } else {
+            data.cell.styles.fillColor = [212, 237, 218];
           }
         }
       }
@@ -179,17 +212,54 @@ export default function Inventory({
       doc.text('✓ SIN DESCUADRES - INVENTARIO CORRECTO', 14, finalY);
     }
     
+    // Sección de firmas
+    const firmasY = Math.min(finalY + (descuadres.length > 0 ? descuadres.length * 6 + 20 : 20), 250);
+    
+    if (firmasY < 260) {
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('FIRMAS Y VALIDACIÓN', 14, firmasY);
+      
+      doc.setDrawColor(0, 0, 0);
+      const firmasBaseY = firmasY + 15;
+      
+      // Firma del Responsable
+      doc.line(14, firmasBaseY, 80, firmasBaseY);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Responsable: ${selectedResponsible}`, 14, firmasBaseY + 5);
+      doc.text('Firma', 14, firmasBaseY + 10);
+      
+      // Firma del Supervisor
+      doc.line(115, firmasBaseY, 180, firmasBaseY);
+      doc.text('Supervisor / Gerencia', 115, firmasBaseY + 5);
+      doc.text('Firma y Sello', 115, firmasBaseY + 10);
+    }
+    
     // Pie de página
     const totalPages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
+      doc.setFontSize(7);
+      doc.setTextColor(100, 100, 100);
+      
+      // Línea superior del pie
+      doc.setDrawColor(220, 53, 69);
+      doc.setLineWidth(0.3);
+      doc.line(14, doc.internal.pageSize.height - 15, pageWidth - 14, doc.internal.pageSize.height - 15);
+      
+      // Texto del pie
       doc.text(
-        `Generado automáticamente por InventarioX - Página ${i} de ${totalPages}`,
-        pageWidth / 2,
+        `Generado por InventarioX - ROAL BURGER`,
+        14,
+        doc.internal.pageSize.height - 10
+      );
+      doc.text(
+        `Página ${i} de ${totalPages}`,
+        pageWidth - 14,
         doc.internal.pageSize.height - 10,
-        { align: 'center' }
+        { align: 'right' }
       );
     }
     
@@ -237,9 +307,17 @@ export default function Inventory({
       // Guardar en Firebase
       await addInventoryLog(userId, logData);
 
+      // Actualizar stock maestro de productos
+      const updatePromises = inventoryData.map(item => {
+        return updateProduct(item.id, {
+          stockActual: parseFloat(item.stockFisico)
+        });
+      });
+      await Promise.all(updatePromises);
+
       // Generar y descargar PDF
       const doc = generatePDF(inventoryData);
-      const fileName = `Inventario_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
 
       // Limpiar formulario
@@ -252,8 +330,8 @@ export default function Inventory({
       setShowConfirmClose(false);
 
       alert(language === 'es'
-        ? '✓ Inventario cerrado correctamente. PDF descargado.'
-        : '✓ Inventory closed successfully. PDF downloaded.');
+        ? '✓ Inventario cerrado correctamente.\n✓ Stock actualizado.\n✓ PDF descargado.'
+        : '✓ Inventory closed successfully.\n✓ Stock updated.\n✓ PDF downloaded.');
 
     } catch (error) {
       console.error('Error al cerrar inventario:', error);
@@ -388,12 +466,15 @@ export default function Inventory({
                 disabled={!canClose || isProcessing}
                 className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold transition-all ${
                   canClose && !isProcessing
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
+                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg'
                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 }`}
               >
                 <FileCheck className="w-5 h-5" />
-                {language === 'es' ? 'Cerrar Inventario' : 'Close Inventory'}
+                {isProcessing 
+                  ? (language === 'es' ? 'Procesando...' : 'Processing...') 
+                  : (language === 'es' ? 'Finalizar y Generar Reporte' : 'Finalize and Generate Report')
+                }
               </button>
             </div>
           </div>
@@ -482,15 +563,15 @@ export default function Inventory({
       {/* Modal de confirmación */}
       <ConfirmationModal
         isOpen={showConfirmClose}
-        title={language === 'es' ? '¿Cerrar inventario?' : 'Close inventory?'}
+        title={language === 'es' ? '🔒 Finalizar Control de Inventario' : '🔒 Finalize Inventory Control'}
         message={language === 'es' 
-          ? `Estás a punto de cerrar el inventario con ${descuadresCount} descuadre${descuadresCount !== 1 ? 's' : ''}. Esta acción generará un registro permanente y no podrá editarse.` 
-          : `You are about to close the inventory with ${descuadresCount} discrepanc${descuadresCount !== 1 ? 'ies' : 'y'}. This action will create a permanent record and cannot be edited.`}
+          ? `Se realizarán las siguientes acciones:\n\n✓ Registro permanente en auditoría\n✓ Actualización del stock maestro de ${inventoryData.length} productos\n✓ Generación de PDF con logo ROAL BURGER\n\n📊 Descuadres detectados: ${descuadresCount}\n\n⚠️ Esta acción NO puede revertirse.` 
+          : `The following actions will be performed:\n\n✓ Permanent audit record\n✓ Master stock update for ${inventoryData.length} products\n✓ PDF generation with ROAL BURGER logo\n\n📊 Discrepancies detected: ${descuadresCount}\n\n⚠️ This action CANNOT be reversed.`}
         onConfirm={handleCloseInventory}
         onCancel={() => setShowConfirmClose(false)}
-        confirmText={language === 'es' ? 'Cerrar y Generar PDF' : 'Close and Generate PDF'}
+        confirmText={language === 'es' ? '✓ Finalizar y Generar Reporte' : '✓ Finalize and Generate Report'}
         cancelText={language === 'es' ? 'Cancelar' : 'Cancel'}
-        isDangerous={false}
+        isDangerous={descuadresCount > 0}
       />
     </div>
   );
