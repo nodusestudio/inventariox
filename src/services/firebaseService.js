@@ -9,7 +9,8 @@ import {
   updateDoc,
   Timestamp,
   runTransaction,
-  onSnapshot
+  onSnapshot,
+  orderBy
 } from 'firebase/firestore';
 import { db, storage } from '../config/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -337,6 +338,8 @@ export const receiveOrderWithTransaction = async (orderId, orderItems, userId) =
     console.log('🔒 Iniciando transacción atómica para pedido:', orderId);
     
     await runTransaction(db, async (transaction) => {
+      // ============ FASE 1: TODAS LAS LECTURAS PRIMERO ============
+      
       // Leer el pedido
       const orderRef = doc(db, 'orders', orderId);
       const orderDoc = await transaction.get(orderRef);
@@ -352,8 +355,8 @@ export const receiveOrderWithTransaction = async (orderId, orderItems, userId) =
         throw new Error('El pedido ya fue recibido anteriormente');
       }
 
-      // Actualizar stock de cada producto de forma atómica
-      const productUpdates = [];
+      // Leer todos los productos ANTES de actualizar
+      const productReads = [];
       for (const item of orderItems) {
         if (!item.id || !item.cantidadPedir || item.cantidadPedir <= 0) {
           console.warn('⚠️ Item inválido omitido:', item);
@@ -368,19 +371,31 @@ export const receiveOrderWithTransaction = async (orderId, orderItems, userId) =
           continue;
         }
 
-        const currentStock = productDoc.data().stockActual || 0;
-        const newStock = currentStock + item.cantidadPedir;
+        productReads.push({
+          ref: productRef,
+          item: item,
+          currentStock: productDoc.data().stockActual || 0
+        });
+      }
+
+      // ============ FASE 2: TODAS LAS ESCRITURAS DESPUÉS ============
+      
+      const productUpdates = [];
+      
+      // Actualizar stock de cada producto
+      for (const read of productReads) {
+        const newStock = read.currentStock + read.item.cantidadPedir;
         
-        transaction.update(productRef, { 
+        transaction.update(read.ref, { 
           stockActual: newStock,
           updatedAt: Timestamp.now()
         });
         
         productUpdates.push({ 
-          id: item.id, 
-          oldStock: currentStock, 
+          id: read.item.id, 
+          oldStock: read.currentStock, 
           newStock, 
-          quantity: item.cantidadPedir 
+          quantity: read.item.cantidadPedir 
         });
       }
 
@@ -873,13 +888,18 @@ export const getInventoryHistory = async (userId) => {
   try {
     const q = query(
       collection(db, 'inventory_history'),
-      where('userId', '==', userId),
-      orderBy('fecha', 'desc')
+      where('userId', '==', userId)
     );
     const querySnapshot = await getDocs(q);
     const history = [];
     querySnapshot.forEach((doc) => {
       history.push({ id: doc.id, ...doc.data() });
+    });
+    // Ordenar en cliente por fecha descendente
+    history.sort((a, b) => {
+      const fechaA = a.fecha?.toDate ? a.fecha.toDate() : new Date(0);
+      const fechaB = b.fecha?.toDate ? b.fecha.toDate() : new Date(0);
+      return fechaB - fechaA;
     });
     console.log(`📊 ${history.length} inventarios en historial`);
     return history;
@@ -895,14 +915,19 @@ export const getInventoryHistory = async (userId) => {
 export const subscribeToInventoryHistory = (userId, callback) => {
   const q = query(
     collection(db, 'inventory_history'),
-    where('userId', '==', userId),
-    orderBy('fecha', 'desc')
+    where('userId', '==', userId)
   );
 
   return onSnapshot(q, (snapshot) => {
     const history = [];
     snapshot.forEach((doc) => {
       history.push({ id: doc.id, ...doc.data() });
+    });
+    // Ordenar en cliente por fecha descendente
+    history.sort((a, b) => {
+      const fechaA = a.fecha?.toDate ? a.fecha.toDate() : new Date(0);
+      const fechaB = b.fecha?.toDate ? b.fecha.toDate() : new Date(0);
+      return fechaB - fechaA;
     });
     callback(history);
   });

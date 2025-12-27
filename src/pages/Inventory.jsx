@@ -367,22 +367,20 @@ export default function Inventory({
     doc.setTextColor(100, 100, 100);
     doc.text(`Productos con consumo: ${productosConConsumo.length} de ${data.length}`, 20, finalY + 23);
     
-    // LÍNEA DE FIRMA DEL RESPONSABLE
-    finalY += 48;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    doc.text('Firma del Responsable:', 14, finalY);
+    // DETALLE DE PRODUCTOS CON CONSUMO
+    finalY += 40;
     
-    doc.setLineWidth(0.5);
-    doc.setDrawColor(0, 0, 0);
-    doc.line(55, finalY, 130, finalY);
+    if (productosConConsumo.length > 0) {
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(220, 53, 69);
+      doc.text('DETALLE DE CONSUMO', 14, finalY);
       
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
       
-      let yPos = finalY + 22;
+      let yPos = finalY + 10;
       productosConConsumo.forEach((item, idx) => {
         if (yPos > 270) {
           doc.addPage();
@@ -399,6 +397,7 @@ export default function Inventory({
         }
         yPos += 6;
       });
+      finalY = yPos + 10;
     } else {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
