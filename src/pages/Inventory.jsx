@@ -101,9 +101,9 @@ export default function Inventory({
     doc.setTextColor(255, 255, 255);
     doc.text('ROAL BURGER', pageWidth / 2, 15, { align: 'center' });
     
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text('CONTROL DE INVENTARIO', pageWidth / 2, 25, { align: 'center' });
+    doc.text('REPORTE DE MOVIMIENTO DIARIO', pageWidth / 2, 25, { align: 'center' });
     
     // Información general
     doc.setFontSize(10);
@@ -192,17 +192,21 @@ export default function Inventory({
     const totalUnidadesSalientes = salidas.reduce((sum, item) => sum + Math.abs(item.diferencia), 0);
     
     if (salidas.length > 0) {
-      doc.setFontSize(12);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text(`TOTAL UNIDADES SALIENTES (VENTAS/MERMAS): ${totalUnidadesSalientes}`, 14, finalY);
+      
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(220, 53, 69);
-      doc.text(`📊 RESUMEN DE SALIDAS / VENTAS`, 14, finalY);
-      doc.text(`Total de Unidades Salientes: ${totalUnidadesSalientes}`, 14, finalY + 7);
+      doc.text(`📊 DETALLE DE PRODUCTOS CON SALIDAS`, 14, finalY + 10);
       
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
       
-      let yPos = finalY + 15;
+      let yPos = finalY + 18;
       salidas.forEach((item, idx) => {
         if (yPos > 270) {
           doc.addPage();
@@ -220,14 +224,15 @@ export default function Inventory({
         yPos += 6;
       });
     } else {
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(34, 139, 34);
-      doc.text('✓ SIN SALIDAS - STOCK COMPLETO', 14, finalY);
+      doc.text('TOTAL UNIDADES SALIENTES (VENTAS/MERMAS): 0', 14, finalY);
+      doc.text('✓ SIN SALIDAS - STOCK COMPLETO', 14, finalY + 8);
     }
     
     // Sección de firmas
-    const firmasY = Math.min(finalY + (descuadres.length > 0 ? descuadres.length * 6 + 20 : 20), 250);
+    const firmasY = Math.min(finalY + (salidas.length > 0 ? salidas.length * 6 + 30 : 20), 250);
     
     if (firmasY < 260) {
       doc.setFontSize(10);
@@ -310,6 +315,19 @@ export default function Inventory({
     setIsProcessing(true);
     
     try {
+      // Validación de campos críticos
+      if (!selectedResponsible || selectedResponsible.trim() === '') {
+        throw new Error('CAMPO_RESPONSABLE');
+      }
+      
+      if (!selectedSede || selectedSede.trim() === '') {
+        throw new Error('CAMPO_SEDE');
+      }
+      
+      if (!selectedProvider || selectedProvider.trim() === '') {
+        throw new Error('CAMPO_PROVEEDOR');
+      }
+
       // Preparar datos para Firebase
       const logData = {
         proveedor: selectedProvider,
@@ -331,18 +349,31 @@ export default function Inventory({
         totalProductos: inventoryData.length
       };
 
-      // Guardar en Firebase
-      await addInventoryLog(userId, logData);
+      // PASO 1: Guardar en Firebase primero
+      try {
+        await addInventoryLog(userId, logData);
+      } catch (firebaseError) {
+        console.error('Error Firebase:', firebaseError);
+        throw new Error('CONEXION_FIREBASE');
+      }
 
-      // Actualizar stock maestro de productos
-      const updatePromises = inventoryData.map(item => {
-        return updateProduct(item.id, {
-          stockActual: parseFloat(item.stockFisico)
+      // PASO 2: Actualizar stock maestro de productos
+      try {
+        const updatePromises = inventoryData.map(item => {
+          return updateProduct(item.id, {
+            stockActual: parseFloat(item.stockFisico)
+          });
         });
-      });
-      await Promise.all(updatePromises);
+        await Promise.all(updatePromises);
+      } catch (updateError) {
+        console.error('Error actualizando stock:', updateError);
+        // Continuar aunque falle la actualización del stock
+        alert(language === 'es'
+          ? '⚠️ Registro guardado pero hubo un error al actualizar el stock maestro'
+          : '⚠️ Record saved but there was an error updating master stock');
+      }
 
-      // Descargar PDF
+      // PASO 3: Solo después de guardar exitosamente, descargar el PDF
       if (previewDoc) {
         const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
         previewDoc.save(fileName);
@@ -364,9 +395,33 @@ export default function Inventory({
 
     } catch (error) {
       console.error('Error al cerrar inventario:', error);
-      alert(language === 'es'
-        ? '❌ Error al guardar el inventario'
-        : '❌ Error saving inventory');
+      
+      // Mensajes de error específicos
+      let errorMsg = '';
+      
+      if (error.message === 'CAMPO_RESPONSABLE') {
+        errorMsg = language === 'es'
+          ? '❌ ERROR: El campo RESPONSABLE está vacío o es inválido.\nPor favor, ingresa el nombre del responsable.'
+          : '❌ ERROR: The RESPONSIBLE field is empty or invalid.\nPlease enter the responsible name.';
+      } else if (error.message === 'CAMPO_SEDE') {
+        errorMsg = language === 'es'
+          ? '❌ ERROR: El campo SEDE está vacío o es inválido.\nPor favor, ingresa el nombre de la sede.'
+          : '❌ ERROR: The LOCATION field is empty or invalid.\nPlease enter the location name.';
+      } else if (error.message === 'CAMPO_PROVEEDOR') {
+        errorMsg = language === 'es'
+          ? '❌ ERROR: El campo PROVEEDOR está vacío o es inválido.\nPor favor, selecciona un proveedor.'
+          : '❌ ERROR: The PROVIDER field is empty or invalid.\nPlease select a provider.';
+      } else if (error.message === 'CONEXION_FIREBASE') {
+        errorMsg = language === 'es'
+          ? '❌ ERROR DE CONEXIÓN: No se pudo conectar con la base de datos.\nVerifica tu conexión a internet e inténtalo nuevamente.'
+          : '❌ CONNECTION ERROR: Could not connect to database.\nCheck your internet connection and try again.';
+      } else {
+        errorMsg = language === 'es'
+          ? `❌ Error inesperado al guardar el inventario.\nDetalles: ${error.message}\n\nContacta al administrador si el problema persiste.`
+          : `❌ Unexpected error saving inventory.\nDetails: ${error.message}\n\nContact administrator if the problem persists.`;
+      }
+      
+      alert(errorMsg);
     } finally {
       setIsProcessing(false);
     }
