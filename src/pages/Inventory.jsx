@@ -53,7 +53,7 @@ export default function Inventory({
     }
   }, [selectedProvider, productsData]);
 
-  // ============ CALCULAR DIFERENCIA AUTOMÁTICAMENTE ============
+  // ============ CALCULAR CONSUMO AUTOMÁTICAMENTE (ERP STANDARD) ============
   const handleStockFisicoChange = (productId, value) => {
     const numValue = value === '' ? '' : parseFloat(value) || 0;
     
@@ -61,12 +61,13 @@ export default function Inventory({
       if (item.id === productId) {
         const teorico = item.stockTeorico;
         const fisico = numValue === '' ? 0 : numValue;
-        const diff = fisico - teorico;
+        // Consumo = Stock Teórico - Stock Físico (positivo = vendido/consumido)
+        const consumo = teorico - fisico;
         
         return {
           ...item,
           stockFisico: value,
-          diferencia: diff
+          diferencia: consumo
         };
       }
       return item;
@@ -82,49 +83,52 @@ export default function Inventory({
     ));
   };
 
-  // ============ GENERAR PDF CON JSPDF ============
+  // ============ GENERAR PDF DE CLASE MUNDIAL (Professional ERP Standard) ============
   const generatePDF = (data) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     
-    // Logo y Encabezado de Empresa
-    doc.setFillColor(220, 53, 69); // Rojo corporativo
+    // Encabezado Corporativo
+    doc.setFillColor(220, 53, 69);
     doc.rect(0, 0, pageWidth, 35, 'F');
     
-    doc.setFontSize(18);
+    doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
     doc.text('ROAL BURGER - REPORTE DE INVENTARIO', pageWidth / 2, 20, { align: 'center' });
     
-    // Información general
+    // Información del Cierre
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
     const now = new Date();
     const fecha = now.toLocaleDateString('es-CL');
-    const hora = now.toLocaleTimeString('es-CL');
+    const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
     
-    doc.text(`Fecha: ${fecha} ${hora}`, 14, 45);
-    doc.text(`Proveedor: ${selectedProvider}`, 14, 52);
+    doc.text(`Fecha: ${fecha}`, 14, 45);
+    doc.text(`Hora: ${hora}`, 14, 52);
     doc.text(`Responsable: ${selectedResponsible}`, 14, 59);
+    doc.text(`Proveedor: ${selectedProvider}`, 14, 66);
     
-    // Estadísticas a la derecha
-    const totalSalidas = data.reduce((sum, item) => {
-      return sum + (item.diferencia < 0 ? Math.abs(item.diferencia) : 0);
-    }, 0);
-    const productosSalidas = data.filter(item => item.diferencia < 0).length;
+    // Métricas de Consumo
+    const totalConsumo = data.reduce((sum, item) => 
+      sum + (item.diferencia > 0 ? item.diferencia : 0), 0
+    );
+    const productosConsumo = data.filter(item => item.diferencia > 0).length;
     
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(`Total Productos: ${data.length}`, pageWidth - 14, 52, { align: 'right' });
-    doc.text(`Productos con Salidas: ${productosSalidas}`, pageWidth - 14, 59, { align: 'right' });
+    doc.text(`Con Consumo: ${productosConsumo}`, pageWidth - 14, 59, { align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Consumo Total: ${totalConsumo} unidades`, pageWidth - 14, 66, { align: 'right' });
     
     // Separador
     doc.setDrawColor(220, 53, 69);
     doc.setLineWidth(0.5);
-    doc.line(14, 65, pageWidth - 14, 65);
+    doc.line(14, 72, pageWidth - 14, 72);
     
-    // Tabla de productos
+    // Tabla de Movimientos
     const tableData = data.map(item => [
       item.nombre,
       item.unidad,
@@ -135,8 +139,8 @@ export default function Inventory({
     ]);
     
     doc.autoTable({
-      startY: 70,
-      head: [['Producto', 'Unidad', 'Stock Teórico', 'Stock Físico', 'Salidas (Ventas)', 'Observaciones']],
+      startY: 77,
+      head: [['Producto', 'Unidad', 'Stock Teórico', 'Conteo Físico', 'Consumo', 'Observaciones']],
       body: tableData,
       theme: 'striped',
       headStyles: { 
@@ -162,49 +166,50 @@ export default function Inventory({
         5: { cellWidth: 40 }
       },
       didParseCell: function(data) {
-        // Resaltar diferencias (Salidas en rojo, Entradas en verde)
+        // Resaltar Consumo (positivo = vendido/consumido, negativo = excedente)
         if (data.section === 'body' && data.column.index === 4) {
-          const diff = parseFloat(data.cell.text[0]);
-          if (diff !== 0) {
-            data.cell.styles.textColor = diff > 0 ? [34, 139, 34] : [220, 53, 69];
+          const consumo = parseFloat(data.cell.text[0]);
+          if (consumo > 0) {
+            data.cell.styles.textColor = [220, 53, 69]; // Rojo para consumo
             data.cell.styles.fontStyle = 'bold';
+          } else if (consumo < 0) {
+            data.cell.styles.textColor = [34, 139, 34]; // Verde para excedente
           }
         }
       }
     });
     
-    // Resumen de Salidas
+    // Resumen de Consumo
     const finalY = doc.lastAutoTable.finalY + 10;
-    const salidas = data.filter(item => item.diferencia < 0);
-    const totalUnidadesSalientes = salidas.reduce((sum, item) => sum + Math.abs(item.diferencia), 0);
+    const productosConConsumo = data.filter(item => item.diferencia > 0);
     
-    if (salidas.length > 0) {
+    if (productosConConsumo.length > 0) {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(220, 53, 69);
-      doc.text('RESUMEN DE SALIDAS', 14, finalY);
+      doc.text('CONSUMO TOTAL', 14, finalY);
       
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 0, 0);
-      doc.text(`Total Unidades Salientes (Ventas/Consumo): ${totalUnidadesSalientes}`, 14, finalY + 8);
+      doc.text(`Total de Unidades: ${totalConsumo}`, 14, finalY + 8);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 100, 100);
-      doc.text('Detalle de productos:', 14, finalY + 16);
+      doc.text(`Productos con consumo: ${productosConConsumo.length}`, 14, finalY + 16);
       
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(0, 0, 0);
       
       let yPos = finalY + 22;
-      salidas.forEach((item, idx) => {
+      productosConConsumo.forEach((item, idx) => {
         if (yPos > 270) {
           doc.addPage();
           yPos = 20;
         }
-        doc.text(`• ${item.nombre}: ${Math.abs(item.diferencia)} ${item.unidad}`, 18, yPos);
+        doc.text(`• ${item.nombre}: ${item.diferencia} ${item.unidad}`, 18, yPos);
         if (item.observaciones) {
           doc.setFontSize(8);
           doc.setTextColor(100, 100, 100);
@@ -219,21 +224,21 @@ export default function Inventory({
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(34, 139, 34);
-      doc.text('RESUMEN DE SALIDAS', 14, finalY);
+      doc.text('CONSUMO TOTAL', 14, finalY);
       
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(34, 139, 34);
-      doc.text('Total Unidades Salientes (Ventas/Consumo): 0', 14, finalY + 8);
+      doc.text('Total de Unidades: 0', 14, finalY + 8);
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 100, 100);
-      doc.text('Sin salidas registradas - Stock completo', 14, finalY + 16);
+      doc.text('Sin consumo registrado - Stock completo', 14, finalY + 16);
     }
     
     // Sección de firmas
-    const firmasY = Math.min(finalY + (salidas.length > 0 ? salidas.length * 6 + 30 : 20), 250);
+    const firmasY = Math.min(finalY + (productosConConsumo.length > 0 ? productosConConsumo.length * 6 + 30 : 20), 250);
     
     if (firmasY < 260) {
       doc.setFontSize(10);
@@ -286,21 +291,24 @@ export default function Inventory({
     return doc;
   };
 
-  // ============ CERRAR INVENTARIO Y GUARDAR DIRECTAMENTE ============
+  // ============ GUARDADO DIRECTO SIN DIÁLOGOS INTERMEDIOS ============
   const handleCloseInventory = async () => {
-    // Validación 1: Campos obligatorios
-    if (!selectedProvider || !selectedResponsible) {
-      alert('Debes seleccionar Proveedor e ingresar el nombre del Responsable');
+    // Validaciones profesionales con mensajes específicos
+    if (!selectedResponsible || selectedResponsible.trim() === '') {
+      alert('Falta el nombre del responsable');
       return;
     }
 
-    // Validación 2: Verificar que hay productos cargados
+    if (!selectedProvider || selectedProvider.trim() === '') {
+      alert('Falta seleccionar el proveedor');
+      return;
+    }
+
     if (!inventoryData || inventoryData.length === 0) {
       alert('No hay productos cargados para generar el reporte');
       return;
     }
 
-    // Validación 3: Stock físico completo
     const incomplete = inventoryData.some(item => 
       item.stockFisico === '' || item.stockFisico === null || item.stockFisico === undefined
     );
@@ -312,40 +320,28 @@ export default function Inventory({
     setIsProcessing(true);
     
     try {
-      // Preparar datos para Firebase
-      const logData = {
-        proveedor: selectedProvider,
-        responsable: selectedResponsible,
-        productos: inventoryData.map(item => ({
-          id: item.id,
-          nombre: item.nombre,
-          unidad: item.unidad,
-          stockTeorico: item.stockTeorico,
-          stockFisico: parseFloat(item.stockFisico),
-          diferencia: item.diferencia,
-          observaciones: item.observaciones || ''
-        })),
-        salidas: inventoryData.filter(item => item.diferencia < 0).length,
-        totalUnidadesSalientes: inventoryData.reduce((sum, item) => 
-          sum + (item.diferencia < 0 ? Math.abs(item.diferencia) : 0), 0
-        ),
-        totalProductos: inventoryData.length
-      };
+      // Preparar array de productos con consumo
+      const productos = inventoryData.map(item => ({
+        id: item.id,
+        nombre: item.nombre,
+        unidad: item.unidad,
+        stockTeorico: item.stockTeorico,
+        stockFisico: parseFloat(item.stockFisico),
+        consumo: item.diferencia,
+        observaciones: item.observaciones || ''
+      }));
 
-      // PASO 1: Guardar en Firebase
-      await addInventoryLog(userId, logData);
+      // Ejecutar guardado en Firebase y actualización de stock EN PARALELO
+      await Promise.all([
+        addInventoryLog(userId, selectedResponsible, selectedProvider, productos),
+        ...inventoryData.map(item => 
+          updateProduct(item.id, { stockActual: parseFloat(item.stockFisico) })
+        )
+      ]);
 
-      // PASO 2: Actualizar stock maestro
-      const updatePromises = inventoryData.map(item => {
-        return updateProduct(item.id, {
-          stockActual: parseFloat(item.stockFisico)
-        });
-      });
-      await Promise.all(updatePromises);
-
-      // PASO 3: Generar y descargar PDF
+      // Generar y descargar PDF (operación asíncrona)
       const doc = generatePDF(inventoryData);
-      const fileName = `Inventario_ROAL_BURGER_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `Reporte_Inventario_${selectedProvider}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
 
       // Limpiar formulario
@@ -355,21 +351,22 @@ export default function Inventory({
       setInventoryData([]);
       setHasUnsavedChanges(false);
 
-      // Mensaje de éxito simple
-      alert('Información guardada con éxito');
+      // Mensaje de éxito exacto según especificación
+      alert('¡Información guardada con éxito!');
 
     } catch (error) {
       console.error('Error al guardar inventario:', error);
-      alert('Error al guardar. Verifica tu conexión e intenta nuevamente.');
+      // Mostrar el mensaje de error específico
+      alert(error.message || 'Error al guardar. Verifica tu conexión e intenta nuevamente.');
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // ============ CONTAR SALIDAS ============
-  const salidasCount = inventoryData.filter(item => item.diferencia < 0).length;
-  const totalUnidadesSalientes = inventoryData.reduce((sum, item) => 
-    sum + (item.diferencia < 0 ? Math.abs(item.diferencia) : 0), 0
+  // ============ ESTADÍSTICAS DE CONSUMO ============
+  const productosConsumo = inventoryData.filter(item => item.diferencia > 0).length;
+  const totalConsumo = inventoryData.reduce((sum, item) => 
+    sum + (item.diferencia > 0 ? item.diferencia : 0), 0
   );
   const canClose = selectedProvider && selectedResponsible && 
                    inventoryData.length > 0 && 
@@ -465,18 +462,18 @@ export default function Inventory({
                 </div>
                 <div>
                   <span className="text-gray-400 light-mode:text-gray-600 text-sm">
-                    {language === 'es' ? 'Salidas/Ventas:' : 'Sales/Exits:'}
+                    {language === 'es' ? 'Con Consumo:' : 'With Consumption:'}
                   </span>
-                  <span className={`font-bold ml-2 ${salidasCount > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {salidasCount}
+                  <span className={`font-bold ml-2 ${productosConsumo > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    {productosConsumo}
                   </span>
                 </div>
                 <div>
                   <span className="text-gray-400 light-mode:text-gray-600 text-sm">
-                    {language === 'es' ? 'Total Unidades Salientes:' : 'Total Exit Units:'}
+                    {language === 'es' ? 'Consumo Total:' : 'Total Consumption:'}
                   </span>
-                  <span className={`font-bold ml-2 ${totalUnidadesSalientes > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {totalUnidadesSalientes}
+                  <span className={`font-bold ml-2 ${totalConsumo > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                    {totalConsumo} {language === 'es' ? 'unidades' : 'units'}
                   </span>
                 </div>
               </div>
@@ -517,7 +514,7 @@ export default function Inventory({
                     {language === 'es' ? 'Stock Físico' : 'Physical Stock'}
                   </th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-300 light-mode:text-gray-700">
-                    {language === 'es' ? 'Salidas (Ventas)' : 'Sales (Exits)'}
+                    {language === 'es' ? 'Consumo' : 'Consumption'}
                   </th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-300 light-mode:text-gray-700">
                     {language === 'es' ? 'Observaciones' : 'Notes'}
@@ -558,12 +555,12 @@ export default function Inventory({
                     <td className="px-4 py-3 text-center">
                       <span className={`font-bold ${
                         item.diferencia > 0 
-                          ? 'text-green-400 light-mode:text-green-600' 
+                          ? 'text-red-400 light-mode:text-red-600' 
                           : item.diferencia < 0 
-                            ? 'text-red-400 light-mode:text-red-600' 
+                            ? 'text-green-400 light-mode:text-green-600' 
                             : 'text-gray-400 light-mode:text-gray-600'
                       }`}>
-                        {item.diferencia < 0 ? Math.abs(item.diferencia) : '-'}
+                        {item.diferencia > 0 ? item.diferencia : '-'}
                       </span>
                     </td>
                     <td className="px-4 py-3">

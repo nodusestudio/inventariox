@@ -724,10 +724,32 @@ export const deleteMerma = async (docId) => {
 // OPERACIONES DE INVENTARIO DIARIO (inventory_logs)
 // ============================================================================
 
-export const addInventoryLog = async (userId, inventoryData) => {
+export const addInventoryLog = async (userId, responsable, proveedor, productos) => {
   try {
+    // Validaciones estrictas
+    if (!responsable || responsable.trim() === '') {
+      throw new Error('Falta el nombre del responsable');
+    }
+    if (!proveedor || proveedor.trim() === '') {
+      throw new Error('Falta seleccionar el proveedor');
+    }
+    if (!productos || productos.length === 0) {
+      throw new Error('No hay productos para registrar');
+    }
+
+    // Calcular métricas de consumo
+    const consumoTotal = productos.reduce((sum, item) => 
+      sum + (item.consumo > 0 ? item.consumo : 0), 0
+    );
+    const productosConsumo = productos.filter(item => item.consumo > 0).length;
+
     const docRef = await addDoc(collection(db, 'inventory_logs'), {
-      ...inventoryData,
+      responsable: responsable.trim(),
+      proveedor: proveedor.trim(),
+      productos,
+      consumoTotal,
+      productosConsumo,
+      totalProductos: productos.length,
       userId,
       fecha_hora: Timestamp.now(),
       createdAt: Timestamp.now()
