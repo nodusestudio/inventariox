@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { TrendingUp, TrendingDown, DollarSign, AlertTriangle, BarChart3, Calendar } from 'lucide-react';
-import { getMovements, getOrders, getProducts } from '../services/firebaseService';
+import { getMovements, subscribeToMovements, subscribeToOrders, subscribeToProducts, getOrders, getProducts } from '../services/firebaseService';
 import { toast } from 'react-hot-toast';
 
 export default function Analytics({ language = 'es', user }) {
@@ -11,29 +11,62 @@ export default function Analytics({ language = 'es', user }) {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState('6months'); // '4weeks', '3months', '6months', '1year'
 
+  // 🔥 REACTIVIDAD: Cargar datos con suscripción en tiempo real
   useEffect(() => {
     if (!user) return;
-    loadData();
-  }, [user]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [movementsData, ordersData, productsData] = await Promise.all([
-        getMovements(user.uid),
-        getOrders(user.uid),
-        getProducts(user.uid)
-      ]);
-      setMovements(movementsData);
-      setOrders(ordersData);
-      setProducts(productsData);
-    } catch (error) {
-      console.error('Error loading analytics data:', error);
-      toast.error('❌ Error al cargar datos de análisis');
-    } finally {
-      setLoading(false);
-    }
-  };
+    let unsubscribeMovements;
+    let unsubscribeOrders;
+    let unsubscribeProducts;
+
+    const setupRealtimeListeners = () => {
+      try {
+        setLoading(true);
+
+        // 🔥 Suscripción en tiempo real a movimientos
+        unsubscribeMovements = subscribeToMovements(user.uid, (movementsData) => {
+          console.log('🔄 Movimientos actualizados (Analytics):', movementsData.length);
+          setMovements(movementsData);
+        });
+
+        // 🔥 Suscripción en tiempo real a pedidos
+        unsubscribeOrders = subscribeToOrders(user.uid, (ordersData) => {
+          console.log('🔄 Pedidos actualizados (Analytics):', ordersData.length);
+          setOrders(ordersData);
+        });
+
+        // 🔥 Suscripción en tiempo real a productos
+        unsubscribeProducts = subscribeToProducts(user.uid, (productsData) => {
+          console.log('🔄 Productos actualizados (Analytics):', productsData.length);
+          setProducts(productsData);
+        });
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Error setting up listeners:', error);
+        toast.error('❌ Error al cargar datos de análisis');
+        setLoading(false);
+      }
+    };
+
+    setupRealtimeListeners();
+
+    // Cleanup: Desuscribirse al desmontar
+    return () => {
+      if (unsubscribeMovements) {
+        console.log('📤 Desuscribiéndose de movimientos (Analytics)');
+        unsubscribeMovements();
+      }
+      if (unsubscribeOrders) {
+        console.log('📤 Desuscribiéndose de pedidos (Analytics)');
+        unsubscribeOrders();
+      }
+      if (unsubscribeProducts) {
+        console.log('📤 Desuscribiéndose de productos (Analytics)');
+        unsubscribeProducts();
+      }
+    };
+  }, [user]);
 
   // Formatear moneda
   const formatCurrency = (value) => {

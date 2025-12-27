@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { t } from '../utils/translations';
 import {
   getProducts,
+  subscribeToProducts,
   addProduct,
   updateProduct,
   deleteProduct,
@@ -62,17 +63,54 @@ export default function Stock({
     }
   };
 
-  // Cargar al montar
+  // 🔥 REACTIVIDAD: Cargar productos con suscripción en tiempo real
   useEffect(() => {
-    loadProvidersAndProducts();
+    if (!user) return;
+
+    let unsubscribeProducts;
+
+    const setupRealtimeListeners = async () => {
+      try {
+        setLoading(true);
+        
+        // Cargar proveedores (una sola vez)
+        const providersData = await getProviders(user.uid);
+        setListaProveedores(providersData);
+
+        // 🔥 Suscripción en tiempo real a productos
+        unsubscribeProducts = subscribeToProducts(user.uid, (productsData) => {
+          console.log('🔄 Productos actualizados en tiempo real:', productsData.length);
+          setProducts(productsData);
+          setLoading(false);
+        });
+      } catch (error) {
+        console.error('Error setting up listeners:', error);
+        toast.error('❌ Error al cargar los datos');
+        setLoading(false);
+      }
+    };
+
+    setupRealtimeListeners();
+
+    // Cleanup: Desuscribirse al desmontar
+    return () => {
+      if (unsubscribeProducts) {
+        console.log('📤 Desuscribiéndose de productos');
+        unsubscribeProducts();
+      }
+    };
   }, [user]);
 
-  // Refrescar proveedores al abrir modal de nuevo producto
+  // Refrescar proveedores al abrir modal
   useEffect(() => {
-    if (showModal) {
-      loadProvidersAndProducts();
-    }
-  }, [showModal]);
+    const loadProviders = async () => {
+      if (showModal && user) {
+        const providersData = await getProviders(user.uid);
+        setListaProveedores(providersData);
+      }
+    };
+    loadProviders();
+  }, [showModal, user]);
 
   // Formulario para nuevo producto
   const [formData, setFormData] = useState({

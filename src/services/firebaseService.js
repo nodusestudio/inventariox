@@ -8,7 +8,8 @@ import {
   doc,
   updateDoc,
   Timestamp,
-  runTransaction
+  runTransaction,
+  onSnapshot
 } from 'firebase/firestore';
 import { db, storage } from '../config/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -44,6 +45,25 @@ export const getProducts = async (userId) => {
     console.error('Error getting products:', error);
     return [];
   }
+};
+
+// 🔥 REACTIVIDAD: Suscripción en tiempo real para productos
+export const subscribeToProducts = (userId, callback) => {
+  const q = query(collection(db, 'products'), where('userId', '==', userId));
+  
+  return onSnapshot(q, 
+    (querySnapshot) => {
+      const products = [];
+      querySnapshot.forEach((doc) => {
+        products.push({ id: doc.id, ...doc.data() });
+      });
+      callback(products);
+    },
+    (error) => {
+      console.error('Error in products subscription:', error);
+      callback([]);
+    }
+  );
 };
 
 export const updateProduct = async (docId, productData) => {
@@ -290,6 +310,30 @@ export const getOrders = async (userId) => {
   }
 };
 
+// 🔥 REACTIVIDAD: Suscripción en tiempo real para pedidos
+export const subscribeToOrders = (userId, callback) => {
+  const q = query(collection(db, 'orders'), where('userId', '==', userId));
+  
+  return onSnapshot(q,
+    (querySnapshot) => {
+      const orders = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        orders.push({ 
+          id: doc.id, 
+          ...data,
+          originalId: data.id 
+        });
+      });
+      callback(orders);
+    },
+    (error) => {
+      console.error('Error in orders subscription:', error);
+      callback([]);
+    }
+  );
+};
+
 // Recibir pedido con transacción (actualiza stock y estado de forma atómica)
 export const receiveOrderWithTransaction = async (orderId, orderItems, userId) => {
   try {
@@ -516,6 +560,25 @@ export const getMovements = async (userId) => {
   }
 };
 
+// 🔥 REACTIVIDAD: Suscripción en tiempo real para movimientos
+export const subscribeToMovements = (userId, callback) => {
+  const q = query(collection(db, 'movements'), where('userId', '==', userId));
+  
+  return onSnapshot(q,
+    (querySnapshot) => {
+      const movements = [];
+      querySnapshot.forEach((doc) => {
+        movements.push({ id: doc.id, ...doc.data() });
+      });
+      callback(movements);
+    },
+    (error) => {
+      console.error('Error in movements subscription:', error);
+      callback([]);
+    }
+  );
+};
+
 // ============================================================================
 // OPERACIONES DE EMPRESA
 // ============================================================================
@@ -627,6 +690,25 @@ export const getMermas = async (userId) => {
     console.error('Error getting mermas:', error);
     return [];
   }
+};
+
+// 🔥 REACTIVIDAD: Suscripción en tiempo real para mermas
+export const subscribeToMermas = (userId, callback) => {
+  const q = query(collection(db, 'mermas'), where('userId', '==', userId));
+  
+  return onSnapshot(q,
+    (querySnapshot) => {
+      const mermas = [];
+      querySnapshot.forEach((doc) => {
+        mermas.push({ id: doc.id, ...doc.data() });
+      });
+      callback(mermas);
+    },
+    (error) => {
+      console.error('Error in mermas subscription:', error);
+      callback([]);
+    }
+  );
 };
 
 export const deleteMerma = async (docId) => {

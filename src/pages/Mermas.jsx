@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus, X, Trash2, AlertCircle, TrendingDown } from 'lucide-react';
-import { getMermas, addMerma, deleteMerma, getProducts, updateProduct } from '../services/firebaseService';
+import { getMermas, subscribeToMermas, subscribeToProducts, addMerma, deleteMerma, getProducts, updateProduct } from '../services/firebaseService';
 import { toast } from 'react-hot-toast';
 import ConfirmationModal from '../components/ConfirmationModal';
 
@@ -28,27 +28,51 @@ export default function Mermas({ language = 'es', user }) {
     'Otro'
   ];
 
+  // 🔥 REACTIVIDAD: Cargar datos con suscripción en tiempo real
   useEffect(() => {
     if (!user) return;
-    loadData();
-  }, [user]);
 
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      const [mermasData, productsData] = await Promise.all([
-        getMermas(user.uid),
-        getProducts(user.uid)
-      ]);
-      setMermas(mermasData);
-      setProducts(productsData);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('❌ Error al cargar datos');
-    } finally {
-      setLoading(false);
-    }
-  };
+    let unsubscribeMermas;
+    let unsubscribeProducts;
+
+    const setupRealtimeListeners = async () => {
+      try {
+        setLoading(true);
+
+        // 🔥 Suscripción en tiempo real a mermas
+        unsubscribeMermas = subscribeToMermas(user.uid, (mermasData) => {
+          console.log('🔄 Mermas actualizadas en tiempo real:', mermasData.length);
+          setMermas(mermasData);
+        });
+
+        // 🔥 Suscripción en tiempo real a productos
+        unsubscribeProducts = subscribeToProducts(user.uid, (productsData) => {
+          console.log('🔄 Productos actualizados en tiempo real:', productsData.length);
+          setProducts(productsData);
+        });
+
+        setLoading(false);
+      } catch (error) {
+        console.error('Error setting up listeners:', error);
+        toast.error('❌ Error al cargar datos');
+        setLoading(false);
+      }
+    };
+
+    setupRealtimeListeners();
+
+    // Cleanup: Desuscribirse al desmontar
+    return () => {
+      if (unsubscribeMermas) {
+        console.log('📤 Desuscribiéndose de mermas');
+        unsubscribeMermas();
+      }
+      if (unsubscribeProducts) {
+        console.log('📤 Desuscribiéndose de productos');
+        unsubscribeProducts();
+      }
+    };
+  }, [user]);
 
   const handleProductChange = (e) => {
     const productId = e.target.value;

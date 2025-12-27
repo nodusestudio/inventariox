@@ -4,6 +4,8 @@ import { toast } from 'react-hot-toast';
 import { useState, useEffect } from 'react';
 import {
   getOrders,
+  subscribeToOrders,
+  subscribeToProducts,
   addOrder,
   updateOrder,
   deleteOrderWithMovements,
@@ -34,30 +36,54 @@ export default function Orders({
     items: []
   });
 
-  // Cargar datos al montar el componente
+  // 🔥 REACTIVIDAD: Cargar datos con suscripción en tiempo real
   useEffect(() => {
     if (!user) return;
     
-    const loadData = async () => {
+    let unsubscribeOrders;
+    let unsubscribeProducts;
+
+    const setupRealtimeListeners = async () => {
       try {
         setLoading(true);
-        const [ordersData, productsData, providersData] = await Promise.all([
-          getOrders(user.uid),
-          getProducts(user.uid),
-          getProviders(user.uid)
-        ]);
-        setOrders(ordersData);
-        setProducts(productsData);
+        
+        // Cargar proveedores (una sola vez)
+        const providersData = await getProviders(user.uid);
         setListaProveedores(providersData);
+
+        // 🔥 Suscripción en tiempo real a pedidos
+        unsubscribeOrders = subscribeToOrders(user.uid, (ordersData) => {
+          console.log('🔄 Pedidos actualizados en tiempo real:', ordersData.length);
+          setOrders(ordersData);
+        });
+
+        // 🔥 Suscripción en tiempo real a productos (para WhatsApp con unidad actualizada)
+        unsubscribeProducts = subscribeToProducts(user.uid, (productsData) => {
+          console.log('🔄 Productos actualizados en tiempo real:', productsData.length);
+          setProducts(productsData);
+        });
+
+        setLoading(false);
       } catch (error) {
-        console.error('Error loading data:', error);
+        console.error('Error setting up listeners:', error);
         toast.error('❌ Error al cargar los datos');
-      } finally {
         setLoading(false);
       }
     };
 
-    loadData();
+    setupRealtimeListeners();
+
+    // Cleanup: Desuscribirse al desmontar
+    return () => {
+      if (unsubscribeOrders) {
+        console.log('📤 Desuscribiéndose de pedidos');
+        unsubscribeOrders();
+      }
+      if (unsubscribeProducts) {
+        console.log('📤 Desuscribiéndose de productos');
+        unsubscribeProducts();
+      }
+    };
   }, [user]);
 
   // Formatear moneda

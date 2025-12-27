@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { ArrowUp, ArrowDown, Calendar, Package, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import { getMovements } from '../services/firebaseService';
+import { getMovements, subscribeToMovements } from '../services/firebaseService';
 import { toast } from 'react-hot-toast';
 
 export default function Movements({ language = 'es', user }) {
@@ -9,24 +9,25 @@ export default function Movements({ language = 'es', user }) {
   const [filterType, setFilterType] = useState(''); // '', 'Entrada', 'Salida', 'Merma', 'Ajuste'
   const [filterMonth, setFilterMonth] = useState('todos'); // 'todos', 'este-mes', 'mes-pasado'
 
-  // Cargar movimientos desde Firestore
+  // 🔥 REACTIVIDAD: Cargar movimientos con suscripción en tiempo real
   useEffect(() => {
     if (!user) return;
-    loadMovements();
-  }, [user]);
 
-  const loadMovements = async () => {
-    try {
-      setLoading(true);
-      const movementsData = await getMovements(user.uid);
+    setLoading(true);
+
+    // 🔥 Suscripción en tiempo real a movimientos
+    const unsubscribe = subscribeToMovements(user.uid, (movementsData) => {
+      console.log('🔄 Movimientos actualizados en tiempo real:', movementsData.length);
       setMovements(movementsData);
-    } catch (error) {
-      console.error('Error loading movements:', error);
-      toast.error('❌ Error al cargar movimientos');
-    } finally {
       setLoading(false);
-    }
-  };
+    });
+
+    // Cleanup: Desuscribirse al desmontar
+    return () => {
+      console.log('📤 Desuscribiéndose de movimientos');
+      unsubscribe();
+    };
+  }, [user]);
 
   // Formatear moneda
   const formatCurrency = (value) => {
