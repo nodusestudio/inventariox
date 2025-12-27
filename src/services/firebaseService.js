@@ -229,7 +229,13 @@ export const getOrders = async (userId) => {
     const orders = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      orders.push({ id: data.id || `PED-${doc.id}`, ...data });
+      // Usar el ID del documento de Firestore como ID principal
+      orders.push({ 
+        id: doc.id, 
+        ...data,
+        // Guardar el ID original de data si existe, como referencia
+        originalId: data.id 
+      });
     });
     return orders;
   } catch (error) {
@@ -347,17 +353,23 @@ export const deleteMovementsByOrderId = async (userId, orderId) => {
 // Eliminar pedido y sus movimientos relacionados
 export const deleteOrderWithMovements = async (docId, userId) => {
   try {
-    // Primero eliminar el pedido
+    console.log('🗑️ Iniciando eliminación del pedido:', docId);
+    
+    // Primero eliminar el pedido de Firestore
     await deleteDoc(doc(db, 'orders', docId));
+    console.log('✅ Pedido eliminado de Firestore:', docId);
     
     // Luego eliminar movimientos relacionados
     if (userId) {
       await deleteMovementsByOrderId(userId, docId);
+      console.log('✅ Movimientos relacionados eliminados');
     }
     
     return { success: true };
   } catch (error) {
-    console.error('Error deleting order with movements:', error);
+    console.error('❌ Error deleting order with movements:', error);
+    console.error('❌ DocId recibido:', docId);
+    console.error('❌ UserId recibido:', userId);
     throw error;
   }
 };
