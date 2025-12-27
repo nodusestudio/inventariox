@@ -98,10 +98,30 @@ export const getStock = async (userId) => {
   }
 };
 
-export const updateStock = async (docId, stockData) => {
+export const updateStock = async (docId, stockData, userId = null, productInfo = null) => {
   try {
     const stockRef = doc(db, 'stock', docId);
     await updateDoc(stockRef, stockData);
+
+    // Si hay cambio en stockActual y tenemos info del producto, registrar movimiento
+    if (userId && productInfo && stockData.stockActual !== undefined) {
+      const producto = productInfo.nombre || productInfo.productName || 'Producto';
+      const cantidadPrevia = productInfo.stockActualPrevio || 0;
+      const cantidadNueva = stockData.stockActual;
+      const diferencia = cantidadNueva - cantidadPrevia;
+      
+      if (diferencia !== 0) {
+        const tipo = diferencia > 0 ? 'Entrada' : 'Salida';
+        await createMovement(
+          userId,
+          tipo,
+          producto,
+          Math.abs(diferencia),
+          productInfo.costo || 0,
+          docId
+        );
+      }
+    }
   } catch (error) {
     console.error('Error updating stock:', error);
     throw error;
@@ -219,7 +239,7 @@ export const getOrders = async (userId) => {
 };
 
 // Recibir pedido con transacción (actualiza stock y estado de forma atómica)
-export const receiveOrderWithTransaction = async (orderId, orderItems) => {
+export const receiveOrderWithTransaction = async (orderId, orderItems, userId) => {
   try {
     await runTransaction(db, async (transaction) => {
       // Leer el pedido
@@ -249,6 +269,22 @@ export const receiveOrderWithTransaction = async (orderId, orderItems) => {
       // Actualizar estado del pedido a Recibido
       transaction.update(orderRef, { estado: 'Recibido' });
     });
+
+    // Registrar movimientos después de la transacción exitosa
+    if (userId) {
+      for (const item of orderItems) {
+        if (item.id && item.cantidadPedir && item.cantidadPedir > 0) {
+          await createMovement(
+            userId,
+            'Entrada',
+            item.nombre || item.productName || 'Producto',
+            item.cantidadPedir,
+            item.costo || 0,
+            item.id
+          );
+        }
+      }
+    }
 
     return { success: true };
   } catch (error) {
@@ -291,6 +327,26 @@ export const addMovement = async (userId, movementData) => {
   } catch (error) {
     console.error('Error adding movement:', error);
     throw error;
+  }
+};
+
+// Función auxiliar para crear movimiento automáticamente
+export const createMovement = async (userId, tipo, productoNombre, cantidad, costoUnitario, productoId = null) => {
+  try {
+    const total = cantidad * costoUnitario;
+    const movementData = {
+      fecha: Timestamp.now(),
+      tipo, // 'Entrada', 'Salida', 'Merma', 'Ajuste'
+      productoNombre,
+      productoId,
+      cantidad,
+      costoUnitario,
+      total
+    };
+    return await addMovement(userId, movementData);
+  } catch (error) {
+    console.error('Error creating movement:', error);
+    // No lanzar error para no afectar la operación principal
   }
 };
 
@@ -380,6 +436,19 @@ export const addMerma = async (userId, mermaData) => {
       userId,
       createdAt: Timestamp.now()
     });
+    
+    // Registrar movimiento automáticamente
+    if (mermaData.productoNombre && mermaData.cantidad && mermaData.costo !== undefined) {
+      await createMovement(
+        userId,
+        'Merma',
+        mermaData.productoNombre,
+        mermaData.cantidad,
+        mermaData.costo,
+        mermaData.productoId
+      );
+    }
+    
     return docRef.id;
   } catch (error) {
     console.error('Error adding merma:', error);

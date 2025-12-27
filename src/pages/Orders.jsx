@@ -270,7 +270,7 @@ export default function Orders({
       // Usar transacción para asegurar que stock y estado se actualicen juntos
       const loadingToast = toast.loading('Recibiendo mercancía...');
       
-      await receiveOrderWithTransaction(orderId, order.items);
+      await receiveOrderWithTransaction(orderId, order.items, user.uid);
       
       // Actualizar estado local
       const updatedOrder = { ...order, estado: 'Recibido' };
