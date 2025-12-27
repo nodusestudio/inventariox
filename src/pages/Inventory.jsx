@@ -88,22 +88,32 @@ export default function Inventory({
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     
-    // Encabezado Corporativo
+    // Encabezado Corporativo - ROAL BURGER en GRANDE
     doc.setFillColor(220, 53, 69);
-    doc.rect(0, 0, pageWidth, 35, 'F');
+    doc.rect(0, 0, pageWidth, 40, 'F');
     
-    doc.setFontSize(20);
+    doc.setFontSize(26);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('ROAL BURGER - REPORTE DE INVENTARIO', pageWidth / 2, 20, { align: 'center' });
+    doc.text('ROAL BURGER', pageWidth / 2, 15, { align: 'center' });
+    
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'normal');
+    doc.text('REPORTE DE INVENTARIO', pageWidth / 2, 25, { align: 'center' });
+    
+    // Fecha y Hora DESTACADA
+    const now = new Date();
+    const fecha = now.toLocaleDateString('es-CL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit', hour12: true });
+    
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text(`${fecha} - ${hora}`, pageWidth / 2, 34, { align: 'center' });
     
     // Información del Cierre
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(0, 0, 0);
-    const now = new Date();
-    const fecha = now.toLocaleDateString('es-CL');
-    const hora = now.toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
     
     doc.text(`Fecha: ${fecha}`, 14, 45);
     doc.text(`Hora: ${hora}`, 14, 52);
@@ -179,25 +189,39 @@ export default function Inventory({
       }
     });
     
-    // Resumen de Consumo
-    const finalY = doc.lastAutoTable.finalY + 10;
+    // Resumen de Consumo con SUMATORIA TOTAL
+    let finalY = doc.lastAutoTable.finalY + 12;
     const productosConConsumo = data.filter(item => item.diferencia > 0);
     
-    if (productosConConsumo.length > 0) {
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(220, 53, 69);
-      doc.text('CONSUMO TOTAL', 14, finalY);
-      
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      doc.text(`Total de Unidades: ${totalConsumo}`, 14, finalY + 8);
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Productos con consumo: ${productosConConsumo.length}`, 14, finalY + 16);
+    // Rectángulo destacado para la sumatoria
+    doc.setFillColor(240, 240, 240);
+    doc.roundedRect(14, finalY - 3, pageWidth - 28, 28, 2, 2, 'F');
+    
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 53, 69);
+    doc.text('SUMATORIA TOTAL DE CONSUMO', 20, finalY + 5);
+    
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(220, 53, 69);
+    doc.text(`${totalConsumo} UNIDADES`, pageWidth - 20, finalY + 18, { align: 'right' });
+    
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Productos con consumo: ${productosConConsumo.length} de ${data.length}`, 20, finalY + 18);
+    
+    // LÍNEA DE FIRMA DEL RESPONSABLE
+    finalY += 45;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text('Firma del Responsable:', 14, finalY);
+    
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(0, 0, 0);
+    doc.line(55, finalY, 130, finalY);
       
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
@@ -379,16 +403,16 @@ export default function Inventory({
       doc.save(fileName);
       console.log('✅ PDF generado:', fileName);
 
-      // Limpiar formulario
+      // RESET COMPLETO del formulario para el siguiente proveedor
       setSelectedProvider('');
       setSelectedResponsible('');
       setFilteredProducts([]);
       setInventoryData([]);
       setHasUnsavedChanges(false);
-      console.log('✅ Formulario limpiado');
+      console.log('✅ Formulario completamente reseteado y listo para el siguiente proveedor');
 
-      // Mensaje de éxito exacto según especificación del usuario
-      alert('¡Inventario registrado con éxito!');
+      // Mensaje de éxito
+      alert('¡Inventario registrado con éxito! PDF descargado.');
       console.log('=== PROCESO COMPLETADO CON ÉXITO ===');
 
     } catch (error) {
@@ -522,13 +546,40 @@ export default function Inventory({
                   </span>
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* PANEL DE RESUMEN DINÁMICO - Feedback inmediato al usuario */}
+          <div className="bg-gradient-to-r from-blue-900 to-blue-800 light-mode:from-blue-100 light-mode:to-blue-50 p-4 border-t border-blue-700 light-mode:border-blue-200">
+            <div className="flex flex-wrap gap-6 items-center justify-between">
+              <div className="flex gap-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-blue-600 light-mode:bg-blue-500 rounded-full flex items-center justify-center">
+                    <FileCheck className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-blue-300 light-mode:text-blue-600 font-medium">Productos Procesados</p>
+                    <p className="text-2xl font-bold text-white light-mode:text-blue-900">{productosConsumo}</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 bg-red-600 light-mode:bg-red-500 rounded-full flex items-center justify-center">
+                    <AlertTriangle className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-blue-300 light-mode:text-blue-600 font-medium">Unidades Totales Salientes</p>
+                    <p className="text-2xl font-bold text-white light-mode:text-red-900">{totalConsumo}</p>
+                  </div>
+                </div>
+              </div>
               
               <button
                 onClick={handleCloseInventory}
                 disabled={!canClose || isProcessing}
-                className={`flex items-center gap-2 px-6 py-2 rounded-lg font-semibold transition-all ${
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-xl ${
                   canClose && !isProcessing
-                    ? 'bg-green-600 hover:bg-green-700 text-white shadow-lg'
+                    ? 'bg-green-600 hover:bg-green-700 text-white hover:shadow-2xl transform hover:scale-105'
                     : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                 }`}
               >
