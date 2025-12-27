@@ -150,6 +150,7 @@ export default function Orders({
         items: [...formData.items, { 
           id: productId,
           nombre: product.nombre,
+          unidad: product.unidad || 'UNIDADES', // 🔥 VERIFICACIÓN: Guardar unidad del producto
           costo: product.costo || 0,
           stockEnMano: stockEnMano,
           stockObjetivo: product.stockCompra || 10,
@@ -462,8 +463,20 @@ _Mensaje generado automáticamente mediante el sistema InventarioX_ 📦`;
 
   // Copiar al portapapeles
   const copyToClipboard = (order) => {
+    // 🔥 MAPEO DE UNIDADES: Consultar products para obtener unidad actualizada
     const itemsList = order.items
-      .map(item => `• ${item.nombre}: ${item.cantidadPedir} unidades`)
+      .map(item => {
+        // Buscar producto actual para obtener unidad real
+        const currentProduct = products.find(p => 
+          p.id === item.id || p.nombre === item.nombre
+        );
+        
+        // 🔥 LÓGICA DINÁMICA: Usar unidad del producto, fallback a 'unidades'
+        const unidad = currentProduct?.unidad || item.unidad || 'unidades';
+        
+        // 🔥 FORMATO FINAL: [Cantidad] [Unidad] de [Nombre del Producto]
+        return `• ${item.cantidadPedir} ${unidad.toLowerCase()} de ${item.nombre}`;
+      })
       .join('\n');
     
     const text = `Hola, le escribo respecto al pedido: ${order.id}\n\nProveedor: ${order.proveedor}\nFecha: ${formatDate(order.fecha)}\n\nProductos:\n${itemsList}\n\nTotal: $${formatCurrency(order.total)}\n\nGracias!`;
