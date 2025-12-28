@@ -401,15 +401,157 @@ export default function DatabasePage({
       // Agregar worksheet al workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Historial de Pedidos');
 
-      // Descargar archivo
+      // Descargar archivo con nombre personalizado
       const fecha = new Date().toISOString().split('T')[0];
-      XLSX.writeFile(wb, `Historial_Pedidos_${fecha}.xlsx`);
+      const año = new Date().getFullYear();
+      XLSX.writeFile(wb, `Historial_Pedidos_RoalBurger_${año}.xlsx`);
 
       toast.dismiss(loadingToast);
-      toast.success(`✓ Reporte de pedidos descargado (${historial.length} registros)`);
+      toast.success(`✓ Historial de Pedidos descargado exitosamente en Excel (${historial.length} registros)`);
     } catch (error) {
       console.error('Error exportando historial de pedidos:', error);
       toast.error('❌ Error al generar el reporte');
+    }
+  };
+
+  /**
+   * Exportar Inventario (Productos y Stock) a Excel con formato profesional
+   */
+  const exportInventarioToExcel = () => {
+    try {
+      const loadingToast = toast.loading('Generando reporte de inventario...');
+      
+      if (!productsData || productsData.length === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('No hay productos en el inventario para exportar');
+        return;
+      }
+
+      // Preparar datos para Excel
+      const excelData = productsData.map(product => ({
+        'Código': product.id || '',
+        'Producto': product.name || '',
+        'Categoría': product.category || 'Sin categoría',
+        'Stock Actual': product.stock || 0,
+        'Stock Mínimo': product.stockMinimo || 0,
+        'Costo Unitario': product.costo || 0,
+        'Precio Venta': product.precio || 0,
+        'Valor Total': (product.stock || 0) * (product.costo || 0),
+        'Estado': (product.stock || 0) <= (product.stockMinimo || 0) ? 'Bajo' : 'OK'
+      }));
+
+      // Crear workbook y worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Configurar anchos de columnas
+      ws['!cols'] = [
+        { wch: 12 },  // Código
+        { wch: 30 },  // Producto
+        { wch: 15 },  // Categoría
+        { wch: 12 },  // Stock Actual
+        { wch: 12 },  // Stock Mínimo
+        { wch: 15 },  // Costo Unitario
+        { wch: 15 },  // Precio Venta
+        { wch: 15 },  // Valor Total
+        { wch: 10 }   // Estado
+      ];
+
+      // Aplicar formato a columnas de dinero
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        // Costo Unitario (columna F)
+        const cellF = XLSX.utils.encode_cell({ r: R, c: 5 });
+        if (ws[cellF]) {
+          ws[cellF].z = '$#,##0.00';
+        }
+        
+        // Precio Venta (columna G)
+        const cellG = XLSX.utils.encode_cell({ r: R, c: 6 });
+        if (ws[cellG]) {
+          ws[cellG].z = '$#,##0.00';
+        }
+        
+        // Valor Total (columna H)
+        const cellH = XLSX.utils.encode_cell({ r: R, c: 7 });
+        if (ws[cellH]) {
+          ws[cellH].z = '$#,##0.00';
+        }
+      }
+
+      // Activar auto-filtros
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+
+      // Agregar worksheet al workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
+
+      // Descargar archivo
+      const año = new Date().getFullYear();
+      XLSX.writeFile(wb, `Inventario_RoalBurger_${año}.xlsx`);
+
+      toast.dismiss(loadingToast);
+      toast.success(`✓ Inventario descargado exitosamente en Excel (${productsData.length} productos)`);
+    } catch (error) {
+      console.error('Error exportando inventario:', error);
+      toast.error('❌ Error al generar el reporte de inventario');
+    }
+  };
+
+  /**
+   * Exportar Proveedores a Excel con formato profesional
+   */
+  const exportProveedoresToExcel = () => {
+    try {
+      const loadingToast = toast.loading('Generando reporte de proveedores...');
+      
+      if (!providersData || providersData.length === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('No hay proveedores para exportar');
+        return;
+      }
+
+      // Preparar datos para Excel
+      const excelData = providersData.map(provider => ({
+        'ID': provider.id || '',
+        'Nombre': provider.name || '',
+        'Teléfono': provider.phone || '',
+        'Email': provider.email || '',
+        'Dirección': provider.address || '',
+        'Contacto': provider.contacto || '',
+        'Notas': provider.notes || ''
+      }));
+
+      // Crear workbook y worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Configurar anchos de columnas
+      ws['!cols'] = [
+        { wch: 10 },  // ID
+        { wch: 25 },  // Nombre
+        { wch: 15 },  // Teléfono
+        { wch: 25 },  // Email
+        { wch: 30 },  // Dirección
+        { wch: 20 },  // Contacto
+        { wch: 30 }   // Notas
+      ];
+
+      // Activar auto-filtros
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+
+      // Agregar worksheet al workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Proveedores');
+
+      // Descargar archivo
+      const año = new Date().getFullYear();
+      XLSX.writeFile(wb, `Proveedores_RoalBurger_${año}.xlsx`);
+
+      toast.dismiss(loadingToast);
+      toast.success(`✓ Proveedores descargados exitosamente en Excel (${providersData.length} proveedores)`);
+    } catch (error) {
+      console.error('Error exportando proveedores:', error);
+      toast.error('❌ Error al generar el reporte de proveedores');
     }
   };
 
@@ -515,12 +657,13 @@ export default function DatabasePage({
       // Agregar worksheet al workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Historial de Inventarios');
 
-      // Descargar archivo
+      // Descargar archivo con nombre personalizado
       const fecha = new Date().toISOString().split('T')[0];
-      XLSX.writeFile(wb, `Historial_Inventarios_${fecha}.xlsx`);
+      const año = new Date().getFullYear();
+      XLSX.writeFile(wb, `Historial_Inventarios_RoalBurger_${año}.xlsx`);
 
       toast.dismiss(loadingToast);
-      toast.success(`✓ Reporte de inventarios descargado (${historial.length} registros)`);
+      toast.success(`✓ Historial de Inventarios descargado exitosamente en Excel (${historial.length} registros)`);
     } catch (error) {
       console.error('Error exportando historial de inventarios:', error);
       toast.error('❌ Error al generar el reporte');
@@ -529,7 +672,7 @@ export default function DatabasePage({
 
   const handleExportBackup = () => {
     if (downloadOption === 'completo') {
-      // Descarga completa
+      // Backup Completo en JSON
       exportToJSON({
         company: companyData,
         providers: providersData,
@@ -537,27 +680,13 @@ export default function DatabasePage({
         stock: stockData,
         orders: ordersData,
       });
-      toast.success('✓ Backup completo descargado exitosamente');
+      toast.success('✓ Backup completo descargado exitosamente en JSON');
     } else if (downloadOption === 'inventario') {
-      // Solo Inventario
-      exportToJSON({
-        company: companyData,
-        providers: [],
-        products: productsData || [],
-        stock: stockData || [],
-        orders: [],
-      });
-      toast.success('✓ Inventario descargado exitosamente');
+      // Inventario en Excel
+      exportInventarioToExcel();
     } else if (downloadOption === 'proveedores') {
-      // Solo Proveedores
-      exportToJSON({
-        company: {},
-        providers: providersData || [],
-        products: [],
-        stock: [],
-        orders: [],
-      });
-      toast.success('✓ Proveedores descargados exitosamente');
+      // Proveedores en Excel
+      exportProveedoresToExcel();
     } else if (downloadOption === 'historial-pedidos') {
       // Historial de Pedidos en Excel
       exportHistorialPedidosToExcel();
@@ -855,9 +984,9 @@ export default function DatabasePage({
                 onChange={(e) => setDownloadOption(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border-2 border-gray-600 light-mode:border-gray-300 bg-[#111827] light-mode:bg-white text-white light-mode:text-gray-900 font-semibold appearance-none cursor-pointer transition-all hover:border-[#206DDA]/50 focus:outline-none focus:border-[#206DDA]"
               >
-                <option value="inventario">📦 Descargar Inventario (.json)</option>
-                <option value="proveedores">👥 Descargar Proveedores (.json)</option>
-                <option value="completo">💾 Backup Completo</option>
+                <option value="inventario">📦 Descargar Inventario (.xlsx)</option>
+                <option value="proveedores">👥 Descargar Proveedores (.xlsx)</option>
+                <option value="completo">💾 Backup Completo (.json)</option>
                 <option value="historial-pedidos">📊 Historial de Pedidos Recibidos (.xlsx)</option>
                 <option value="historial-inventarios">📊 Historial de Inventarios (.xlsx)</option>
               </select>
