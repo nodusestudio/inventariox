@@ -2,6 +2,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   query,
   where,
   deleteDoc,
@@ -279,6 +280,47 @@ export const addOrder = async (userId, orderData) => {
       userId,
       createdAt: Timestamp.now()
     });
+    
+    // Registrar creación en historial
+    const now = new Date();
+    const horaCreacion = now.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const montoTotal = orderData.items?.reduce((sum, item) => {
+      const precio = item.costo || item.precio || 0;
+      const cantidad = item.cantidadPedir || 0;
+      return sum + (precio * cantidad);
+    }, 0) || 0;
+    
+    // Construir objeto del historial sin campos undefined
+    const historialData = {
+      id_pedido: docRef.id,
+      accion: 'Creado',
+      proveedor: orderData.proveedor || 'Desconocido',
+      fecha_accion: Timestamp.now(),
+      horaAccion: horaCreacion,
+      montoTotal: montoTotal,
+      items: orderData.items || [],
+      userId,
+      createdAt: Timestamp.now()
+    };
+    
+    // Agregar campos opcionales solo si tienen valor
+    if (orderData.fechaEntrega) {
+      historialData.fechaEntrega = orderData.fechaEntrega;
+    }
+    if (orderData.horaEntrega) {
+      historialData.horaEntrega = orderData.horaEntrega;
+    }
+    if (orderData.direccionEntrega) {
+      historialData.direccionEntrega = orderData.direccionEntrega;
+    }
+    
+    await addDoc(collection(db, 'historial_pedidos'), historialData);
+    
     return docRef.id;
   } catch (error) {
     console.error('Error adding order:', error);
@@ -332,8 +374,29 @@ export const subscribeToOrders = (userId, callback) => {
   );
 };
 
-// Recibir pedido con transacción (actualiza stock y estado de forma atómica)
-export const receiveOrderWithTransaction = async (orderId, orderItems, userId) => {
+// ============================================================================
+// OPERACIONES DE PEDIDOS CON HISTORIAL PERSISTENTE
+// ============================================================================
+
+/**
+ * TRANSACCIÓN OPTIMIZADA - RECEPCIÓN DE PEDIDOS
+ * 
+ * Esta función ejecuta TODAS las operaciones en una sola transacción:
+ * 1. Actualizar stock de productos
+ * 2. Cambiar estado del pedido a "Recibido"
+ * 3. Guardar registro en historial_pedidos
+ * 
+ * IMPORTANTE: 
+ * - Todas las LECTURAS ocurren ANTES de las ESCRITURAS
+ * - Garantiza consistencia de datos (todo o nada)
+ * - Evita errores de red y race conditions
+ * 
+ * @param {string} orderId - ID del pedido a recibir
+ * @param {Array} orderItems - Lista de productos del pedido
+ * @param {string} userId - ID del usuario
+ * @param {Object} orderData - Datos adicionales del pedido (proveedor, monto, etc.)
+ */
+export const receiveOrderWithTransaction = async (orderId, orderItems, userId, orderData = {}) => {
   try {
     console.log('🔒 Iniciando transacción atómica para pedido:', orderId);
     
@@ -348,10 +411,10 @@ export const receiveOrderWithTransaction = async (orderId, orderItems, userId) =
         throw new Error('Pedido no encontrado');
       }
 
-      const orderData = orderDoc.data();
+      const orderDataFromDB = orderDoc.data();
       
       // Verificar que el pedido esté en estado Pendiente
-      if (orderData.estado === 'Recibido') {
+      if (orderDataFromDB.estado === 'Recibido') {
         throw new Error('El pedido ya fue recibido anteriormente');
       }
 
@@ -406,7 +469,57 @@ export const receiveOrderWithTransaction = async (orderId, orderItems, userId) =
         updatedAt: Timestamp.now()
       });
 
+      // ============ GUARDAR EN HISTORIAL_PEDIDOS ============
+      // Crear documento en historial_pedidos dentro de la transacción
+      const historialRef = doc(collection(db, 'historial_pedidos'));
+      
+      // Construir objeto del historial eliminando campos undefined
+      const historialData = {
+        id_pedido: orderId,
+        accion: 'Recibido',
+        proveedor: orderData.proveedor || orderDataFromDB.proveedor || 'Desconocido',
+        fecha_recepcion: Timestamp.now(),
+        fecha_accion: Timestamp.now(),
+        montoTotal: orderData.montoTotal || 0,
+        items: orderItems.map(item => {
+          const itemData = {
+            id: item.id,
+            cantidadPedir: item.cantidadPedir,
+            costo: item.costo || item.precio || 0
+          };
+          
+          // Solo agregar campos si tienen valor
+          if (item.nombre) itemData.nombre = item.nombre;
+          if (item.productName) itemData.productName = item.productName;
+          if (item.unidad) itemData.unidad = item.unidad;
+          
+          return itemData;
+        }),
+        userId,
+        createdAt: Timestamp.now()
+      };
+      
+      // Agregar campos opcionales solo si tienen valor
+      if (orderData.fechaEntrega || orderDataFromDB.fechaEntrega) {
+        historialData.fechaEntrega = orderData.fechaEntrega || orderDataFromDB.fechaEntrega;
+      }
+      if (orderData.horaEntrega || orderDataFromDB.horaEntrega) {
+        historialData.horaEntrega = orderData.horaEntrega || orderDataFromDB.horaEntrega;
+      }
+      if (orderData.direccionEntrega || orderDataFromDB.direccionEntrega) {
+        historialData.direccionEntrega = orderData.direccionEntrega || orderDataFromDB.direccionEntrega;
+      }
+      if (orderData.responsable) {
+        historialData.responsable = orderData.responsable;
+      }
+      if (orderData.horaRecepcion) {
+        historialData.horaRecepcion = orderData.horaRecepcion;
+      }
+      
+      transaction.set(historialRef, historialData);
+
       console.log('✅ Transacción completada. Productos actualizados:', productUpdates.length);
+      console.log('✅ Historial de pedido guardado');
     });
 
     // Registrar movimientos después de la transacción exitosa
@@ -453,6 +566,71 @@ export const deleteOrder = async (docId) => {
   }
 };
 
+// ============================================================================
+// HISTORIAL DE PEDIDOS
+// ============================================================================
+
+/**
+ * Obtener historial de pedidos recibidos
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<Array>} - Array de pedidos recibidos ordenados por fecha descendente
+ */
+export const getHistorialPedidos = async (userId) => {
+  try {
+    const q = query(
+      collection(db, 'historial_pedidos'),
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const historial = [];
+    querySnapshot.forEach((doc) => {
+      historial.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Ordenar por fecha de recepción descendente (más recientes primero)
+    historial.sort((a, b) => {
+      const fechaA = a.fecha_recepcion?.toDate ? a.fecha_recepcion.toDate() : new Date(0);
+      const fechaB = b.fecha_recepcion?.toDate ? b.fecha_recepcion.toDate() : new Date(0);
+      return fechaB - fechaA;
+    });
+    
+    console.log(`📊 ${historial.length} pedidos en historial`);
+    return historial;
+  } catch (error) {
+    console.error('❌ Error al obtener historial de pedidos:', error);
+    throw error;
+  }
+};
+
+/**
+ * Suscripción en tiempo real al historial de pedidos
+ * @param {string} userId - ID del usuario
+ * @param {Function} callback - Función que se ejecuta cuando hay cambios
+ * @returns {Function} - Función para cancelar la suscripción
+ */
+export const subscribeToHistorialPedidos = (userId, callback) => {
+  const q = query(
+    collection(db, 'historial_pedidos'),
+    where('userId', '==', userId)
+  );
+
+  return onSnapshot(q, (snapshot) => {
+    const historial = [];
+    snapshot.forEach((doc) => {
+      historial.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Ordenar por fecha descendente
+    historial.sort((a, b) => {
+      const fechaA = a.fecha_recepcion?.toDate ? a.fecha_recepcion.toDate() : new Date(0);
+      const fechaB = b.fecha_recepcion?.toDate ? b.fecha_recepcion.toDate() : new Date(0);
+      return fechaB - fechaA;
+    });
+    
+    callback(historial);
+  });
+};
+
 // Eliminar movimientos relacionados con un pedido específico
 export const deleteMovementsByOrderId = async (userId, orderId) => {
   try {
@@ -488,8 +666,61 @@ export const deleteOrderWithMovements = async (docId, userId) => {
   try {
     console.log('🗑️ Iniciando eliminación del pedido:', docId);
     
-    // Primero eliminar el pedido de Firestore
-    await deleteDoc(doc(db, 'orders', docId));
+    // Obtener datos del pedido ANTES de eliminarlo
+    const orderRef = doc(db, 'orders', docId);
+    const orderDoc = await getDoc(orderRef);
+    
+    if (!orderDoc.exists()) {
+      throw new Error('Pedido no encontrado');
+    }
+    
+    const orderData = orderDoc.data();
+    
+    // Registrar eliminación en historial ANTES de eliminar
+    const now = new Date();
+    const horaEliminacion = now.toLocaleTimeString('es-CL', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+    
+    const montoTotal = orderData.items?.reduce((sum, item) => {
+      const precio = item.costo || item.precio || 0;
+      const cantidad = item.cantidadPedir || 0;
+      return sum + (precio * cantidad);
+    }, 0) || 0;
+    
+    // Construir objeto del historial sin campos undefined
+    const historialData = {
+      id_pedido: docId,
+      accion: 'Eliminado',
+      proveedor: orderData.proveedor || 'Desconocido',
+      fecha_accion: Timestamp.now(),
+      horaAccion: horaEliminacion,
+      montoTotal: montoTotal,
+      items: orderData.items || [],
+      userId: userId || orderData.userId,
+      createdAt: Timestamp.now()
+    };
+    
+    // Agregar campos opcionales solo si tienen valor
+    if (orderData.fechaEntrega) {
+      historialData.fechaEntrega = orderData.fechaEntrega;
+    }
+    if (orderData.horaEntrega) {
+      historialData.horaEntrega = orderData.horaEntrega;
+    }
+    if (orderData.direccionEntrega) {
+      historialData.direccionEntrega = orderData.direccionEntrega;
+    }
+    if (orderData.estado) {
+      historialData.estado_anterior = orderData.estado;
+    }
+    
+    await addDoc(collection(db, 'historial_pedidos'), historialData);
+    
+    // Ahora eliminar el pedido de Firestore
+    await deleteDoc(orderRef);
     console.log('✅ Pedido eliminado de Firestore:', docId);
     
     // Luego eliminar movimientos relacionados
