@@ -1356,3 +1356,75 @@ export const deleteAllUserData = async (userId) => {
     throw error;
   }
 };
+
+// ============================================================================
+// REPORTES COMPLETOS - PARA EXPORTACIÓN A EXCEL
+// ============================================================================
+
+/**
+ * Obtener TODO el historial de pedidos sin filtros (para reportes)
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<Array>} - Array completo de todos los pedidos registrados
+ */
+export const getAllHistorialPedidos = async (userId) => {
+  try {
+    const q = query(
+      collection(db, 'historial_pedidos'),
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const historial = [];
+    querySnapshot.forEach((doc) => {
+      historial.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Ordenar por fecha descendente
+    historial.sort((a, b) => {
+      const fechaA = a.fecha_accion?.toDate 
+        ? a.fecha_accion.toDate() 
+        : (a.fecha_recepcion?.toDate ? a.fecha_recepcion.toDate() : new Date(0));
+      const fechaB = b.fecha_accion?.toDate 
+        ? b.fecha_accion.toDate() 
+        : (b.fecha_recepcion?.toDate ? b.fecha_recepcion.toDate() : new Date(0));
+      return fechaB - fechaA;
+    });
+    
+    console.log(`📊 Total historial de pedidos: ${historial.length}`);
+    return historial;
+  } catch (error) {
+    console.error('❌ Error al obtener historial completo de pedidos:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtener TODO el historial de inventarios sin filtros (para reportes)
+ * @param {string} userId - ID del usuario
+ * @returns {Promise<Array>} - Array completo de todos los cierres de inventario
+ */
+export const getAllInventoryHistory = async (userId) => {
+  try {
+    const q = query(
+      collection(db, 'inventory_history'),
+      where('userId', '==', userId)
+    );
+    const querySnapshot = await getDocs(q);
+    const history = [];
+    querySnapshot.forEach((doc) => {
+      history.push({ id: doc.id, ...doc.data() });
+    });
+    
+    // Ordenar por fecha descendente
+    history.sort((a, b) => {
+      const fechaA = a.fechaCierre?.toDate ? a.fechaCierre.toDate() : new Date(0);
+      const fechaB = b.fechaCierre?.toDate ? b.fechaCierre.toDate() : new Date(0);
+      return fechaB - fechaA;
+    });
+    
+    console.log(`📊 Total historial de inventarios: ${history.length}`);
+    return history;
+  } catch (error) {
+    console.error('❌ Error al obtener historial completo de inventarios:', error);
+    throw error;
+  }
+};

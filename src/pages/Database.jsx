@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Download, Upload, Database, HardDrive, Trash2, AlertTriangle, Cloud, Clock, Package, Users, FileJson, ChevronDown } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import { t } from '../utils/translations';
-import { deleteAllUserData } from '../services/firebaseService';
+import { deleteAllUserData, getAllHistorialPedidos, getAllInventoryHistory } from '../services/firebaseService';
+import * as XLSX from 'xlsx';
 
 // ============================================================================
 // FUNCIONES DE IMPORTACIÓN
@@ -278,6 +279,254 @@ export default function DatabasePage({
     exportToCSV(data, 'Pedidos');
   };
 
+  // ============================================================================
+  // FUNCIONES DE EXPORTACIÓN A EXCEL (XLSX)
+  // ============================================================================
+
+  /**
+   * Exportar Historial de Pedidos a Excel con formato profesional
+   */
+  const exportHistorialPedidosToExcel = async () => {
+    try {
+      const loadingToast = toast.loading('Generando reporte de pedidos...');
+      
+      // Obtener todos los datos
+      const historial = await getAllHistorialPedidos(user.uid);
+      
+      if (historial.length === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('No hay datos de pedidos para exportar');
+        return;
+      }
+
+      // Preparar datos para Excel
+      const excelData = [];
+      
+      historial.forEach((pedido) => {
+        const fecha = pedido.fecha_accion?.toDate 
+          ? pedido.fecha_accion.toDate() 
+          : (pedido.fecha_recepcion?.toDate ? pedido.fecha_recepcion.toDate() : new Date());
+        
+        const fechaFormateada = fecha.toLocaleDateString('es-CL', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+        
+        const horaFormateada = pedido.horaAccion || pedido.horaRecepcion || fecha.toLocaleTimeString('es-CL', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+
+        const accion = pedido.accion || 'Recibido';
+        const responsable = pedido.responsable || 'N/A';
+        const montoTotal = pedido.montoTotal || 0;
+
+        // Agregar fila principal del pedido
+        if (pedido.items && pedido.items.length > 0) {
+          pedido.items.forEach((item, idx) => {
+            excelData.push({
+              'Fecha': idx === 0 ? fechaFormateada : '',
+              'Hora': idx === 0 ? horaFormateada : '',
+              'Acción': idx === 0 ? accion : '',
+              'Proveedor': idx === 0 ? pedido.proveedor : '',
+              'Responsable': idx === 0 ? responsable : '',
+              'Producto': item.nombre || item.productName || 'Desconocido',
+              'Cantidad': item.cantidadPedir || 0,
+              'Precio Unitario': item.costo || 0,
+              'Subtotal': (item.cantidadPedir || 0) * (item.costo || 0),
+              'Monto Total': idx === 0 ? montoTotal : ''
+            });
+          });
+        } else {
+          excelData.push({
+            'Fecha': fechaFormateada,
+            'Hora': horaFormateada,
+            'Acción': accion,
+            'Proveedor': pedido.proveedor,
+            'Responsable': responsable,
+            'Producto': 'Sin productos',
+            'Cantidad': 0,
+            'Precio Unitario': 0,
+            'Subtotal': 0,
+            'Monto Total': montoTotal
+          });
+        }
+      });
+
+      // Crear workbook y worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Configurar anchos de columnas
+      ws['!cols'] = [
+        { wch: 12 },  // Fecha
+        { wch: 12 },  // Hora
+        { wch: 12 },  // Acción
+        { wch: 20 },  // Proveedor
+        { wch: 20 },  // Responsable
+        { wch: 30 },  // Producto
+        { wch: 10 },  // Cantidad
+        { wch: 15 },  // Precio Unitario
+        { wch: 15 },  // Subtotal
+        { wch: 15 }   // Monto Total
+      ];
+
+      // Aplicar formato a columnas de dinero
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        // Precio Unitario (columna H)
+        const cellH = XLSX.utils.encode_cell({ r: R, c: 7 });
+        if (ws[cellH]) {
+          ws[cellH].z = '$#,##0.00';
+        }
+        
+        // Subtotal (columna I)
+        const cellI = XLSX.utils.encode_cell({ r: R, c: 8 });
+        if (ws[cellI]) {
+          ws[cellI].z = '$#,##0.00';
+        }
+        
+        // Monto Total (columna J)
+        const cellJ = XLSX.utils.encode_cell({ r: R, c: 9 });
+        if (ws[cellJ]) {
+          ws[cellJ].z = '$#,##0.00';
+        }
+      }
+
+      // Activar auto-filtros
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+
+      // Agregar worksheet al workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Historial de Pedidos');
+
+      // Descargar archivo
+      const fecha = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `Historial_Pedidos_${fecha}.xlsx`);
+
+      toast.dismiss(loadingToast);
+      toast.success(`✓ Reporte de pedidos descargado (${historial.length} registros)`);
+    } catch (error) {
+      console.error('Error exportando historial de pedidos:', error);
+      toast.error('❌ Error al generar el reporte');
+    }
+  };
+
+  /**
+   * Exportar Historial de Inventarios a Excel con formato profesional
+   */
+  const exportHistorialInventariosToExcel = async () => {
+    try {
+      const loadingToast = toast.loading('Generando reporte de inventarios...');
+      
+      // Obtener todos los datos
+      const historial = await getAllInventoryHistory(user.uid);
+      
+      if (historial.length === 0) {
+        toast.dismiss(loadingToast);
+        toast.error('No hay datos de inventarios para exportar');
+        return;
+      }
+
+      // Preparar datos para Excel
+      const excelData = [];
+      
+      historial.forEach((inventario) => {
+        const fecha = inventario.fechaCierre?.toDate 
+          ? inventario.fechaCierre.toDate() 
+          : new Date();
+        
+        const fechaFormateada = fecha.toLocaleDateString('es-CL', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+        
+        const horaFormateada = fecha.toLocaleTimeString('es-CL', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true
+        });
+
+        // Agregar productos del inventario
+        if (inventario.productos && inventario.productos.length > 0) {
+          inventario.productos.forEach((prod, idx) => {
+            excelData.push({
+              'Fecha': idx === 0 ? fechaFormateada : '',
+              'Hora': idx === 0 ? horaFormateada : '',
+              'Producto': prod.nombre || 'Desconocido',
+              'Conteo Físico': prod.conteoFisico || 0,
+              'Stock Anterior': prod.stockAnterior || 0,
+              'Diferencia': (prod.conteoFisico || 0) - (prod.stockAnterior || 0),
+              'Costo Unitario': prod.costo || 0,
+              'Valor Total': (prod.conteoFisico || 0) * (prod.costo || 0)
+            });
+          });
+        } else {
+          excelData.push({
+            'Fecha': fechaFormateada,
+            'Hora': horaFormateada,
+            'Producto': 'Sin productos',
+            'Conteo Físico': 0,
+            'Stock Anterior': 0,
+            'Diferencia': 0,
+            'Costo Unitario': 0,
+            'Valor Total': 0
+          });
+        }
+      });
+
+      // Crear workbook y worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Configurar anchos de columnas
+      ws['!cols'] = [
+        { wch: 12 },  // Fecha
+        { wch: 12 },  // Hora
+        { wch: 30 },  // Producto
+        { wch: 15 },  // Conteo Físico
+        { wch: 15 },  // Stock Anterior
+        { wch: 12 },  // Diferencia
+        { wch: 15 },  // Costo Unitario
+        { wch: 15 }   // Valor Total
+      ];
+
+      // Aplicar formato a columnas de dinero
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+        // Costo Unitario (columna G)
+        const cellG = XLSX.utils.encode_cell({ r: R, c: 6 });
+        if (ws[cellG]) {
+          ws[cellG].z = '$#,##0.00';
+        }
+        
+        // Valor Total (columna H)
+        const cellH = XLSX.utils.encode_cell({ r: R, c: 7 });
+        if (ws[cellH]) {
+          ws[cellH].z = '$#,##0.00';
+        }
+      }
+
+      // Activar auto-filtros
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+
+      // Agregar worksheet al workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Historial de Inventarios');
+
+      // Descargar archivo
+      const fecha = new Date().toISOString().split('T')[0];
+      XLSX.writeFile(wb, `Historial_Inventarios_${fecha}.xlsx`);
+
+      toast.dismiss(loadingToast);
+      toast.success(`✓ Reporte de inventarios descargado (${historial.length} registros)`);
+    } catch (error) {
+      console.error('Error exportando historial de inventarios:', error);
+      toast.error('❌ Error al generar el reporte');
+    }
+  };
+
   const handleExportBackup = () => {
     if (downloadOption === 'completo') {
       // Descarga completa
@@ -309,6 +558,12 @@ export default function DatabasePage({
         orders: [],
       });
       toast.success('✓ Proveedores descargados exitosamente');
+    } else if (downloadOption === 'historial-pedidos') {
+      // Historial de Pedidos en Excel
+      exportHistorialPedidosToExcel();
+    } else if (downloadOption === 'historial-inventarios') {
+      // Historial de Inventarios en Excel
+      exportHistorialInventariosToExcel();
     }
   };
 
@@ -603,6 +858,8 @@ export default function DatabasePage({
                 <option value="inventario">📦 Descargar Inventario (.json)</option>
                 <option value="proveedores">👥 Descargar Proveedores (.json)</option>
                 <option value="completo">💾 Backup Completo</option>
+                <option value="historial-pedidos">📊 Historial de Pedidos Recibidos (.xlsx)</option>
+                <option value="historial-inventarios">📊 Historial de Inventarios (.xlsx)</option>
               </select>
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
             </div>
