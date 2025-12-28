@@ -429,58 +429,101 @@ export default function DatabasePage({
 
       // Preparar datos para Excel
       const excelData = productsData.map(product => ({
-        'Código': product.id || '',
-        'Producto': product.name || '',
-        'Categoría': product.category || 'Sin categoría',
-        'Stock Actual': product.stock || 0,
-        'Stock Mínimo': product.stockMinimo || 0,
-        'Costo Unitario': product.costo || 0,
-        'Precio Venta': product.precio || 0,
-        'Valor Total': (product.stock || 0) * (product.costo || 0),
-        'Estado': (product.stock || 0) <= (product.stockMinimo || 0) ? 'Bajo' : 'OK'
+        'PRODUCTO': (product.name || 'SIN NOMBRE').toUpperCase(),
+        'CATEGORÍA': (product.category || 'SIN CATEGORÍA').toUpperCase(),
+        'PROVEEDOR': (product.proveedor || 'SIN PROVEEDOR').toUpperCase(),
+        'STOCK ACTUAL': product.stock || 0,
+        'STOCK MÍNIMO': product.stockMinimo || 0,
+        'COSTO': product.costo || 0,
+        'PRECIO': product.precio || 0,
+        'VALOR TOTAL': (product.stock || 0) * (product.costo || 0),
+        'ESTADO': (product.stock || 0) <= (product.stockMinimo || 0) ? 'BAJO' : 'OK'
       }));
 
-      // Crear workbook y worksheet
+      // Crear workbook
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(excelData);
+      
+      // Fecha de descarga
+      const fechaDescarga = new Date().toLocaleDateString('es-CL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+      
+      // Crear datos con fila de título
+      const wsData = [
+        [`ROAL BURGER - CONTROL DE EXISTENCIAS TOTAL - ${fechaDescarga}`],
+        [],  // Fila vacía
+        ...XLSX.utils.sheet_to_json(XLSX.utils.json_to_sheet(excelData), { header: 1 })
+      ];
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
 
       // Configurar anchos de columnas
       ws['!cols'] = [
-        { wch: 12 },  // Código
-        { wch: 30 },  // Producto
-        { wch: 15 },  // Categoría
-        { wch: 12 },  // Stock Actual
-        { wch: 12 },  // Stock Mínimo
-        { wch: 15 },  // Costo Unitario
-        { wch: 15 },  // Precio Venta
-        { wch: 15 },  // Valor Total
-        { wch: 10 }   // Estado
+        { wch: 35 },  // PRODUCTO
+        { wch: 20 },  // CATEGORÍA
+        { wch: 25 },  // PROVEEDOR
+        { wch: 15 },  // STOCK ACTUAL
+        { wch: 15 },  // STOCK MÍNIMO
+        { wch: 15 },  // COSTO
+        { wch: 15 },  // PRECIO
+        { wch: 15 },  // VALOR TOTAL
+        { wch: 12 }   // ESTADO
       ];
 
-      // Aplicar formato a columnas de dinero
+      // Estilo para el título principal (fila 1)
+      if (ws['A1']) {
+        ws['A1'].s = {
+          font: { bold: true, sz: 14 },
+          alignment: { horizontal: 'center' },
+          fill: { fgColor: { rgb: "4472C4" } }
+        };
+        // Combinar celdas del título
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 8 } }];
+      }
+
+      // Estilo para encabezados (fila 3) - Negrita con fondo gris claro
+      const headerCells = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3', 'G3', 'H3', 'I3'];
+      headerCells.forEach(cell => {
+        if (ws[cell]) {
+          ws[cell].s = {
+            font: { bold: true },
+            alignment: { horizontal: 'center' },
+            fill: { fgColor: { rgb: "D9D9D9" } }  // Gris claro
+          };
+        }
+      });
+
+      // Aplicar formato de moneda a columnas COSTO, PRECIO y VALOR TOTAL
       const range = XLSX.utils.decode_range(ws['!ref']);
-      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-        // Costo Unitario (columna F)
+      for (let R = 3; R <= range.e.r; ++R) {  // Empezar en fila 4 (índice 3)
+        // COSTO (columna F - índice 5)
         const cellF = XLSX.utils.encode_cell({ r: R, c: 5 });
-        if (ws[cellF]) {
+        if (ws[cellF] && typeof ws[cellF].v === 'number') {
           ws[cellF].z = '$#,##0.00';
         }
         
-        // Precio Venta (columna G)
+        // PRECIO (columna G - índice 6)
         const cellG = XLSX.utils.encode_cell({ r: R, c: 6 });
-        if (ws[cellG]) {
+        if (ws[cellG] && typeof ws[cellG].v === 'number') {
           ws[cellG].z = '$#,##0.00';
         }
         
-        // Valor Total (columna H)
+        // VALOR TOTAL (columna H - índice 7)
         const cellH = XLSX.utils.encode_cell({ r: R, c: 7 });
-        if (ws[cellH]) {
+        if (ws[cellH] && typeof ws[cellH].v === 'number') {
           ws[cellH].z = '$#,##0.00';
         }
       }
 
-      // Activar auto-filtros
-      ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+      // Activar auto-filtros en los encabezados
+      ws['!autofilter'] = { 
+        ref: XLSX.utils.encode_range({ 
+          s: { r: 2, c: 0 }, 
+          e: { r: range.e.r, c: 8 } 
+        }) 
+      };
 
       // Agregar worksheet al workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
@@ -577,82 +620,94 @@ export default function DatabasePage({
       historial.forEach((inventario) => {
         const fecha = inventario.fechaCierre?.toDate 
           ? inventario.fechaCierre.toDate() 
-          : new Date();
+          : (inventario.fecha?.toDate ? inventario.fecha.toDate() : new Date());
         
-        const fechaFormateada = fecha.toLocaleDateString('es-CL', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric'
-        });
+        // Formato DD/MM/YYYY HH:mm
+        const fechaFormateada = `${fecha.getDate().toString().padStart(2, '0')}/${(fecha.getMonth() + 1).toString().padStart(2, '0')}/${fecha.getFullYear()} ${fecha.getHours().toString().padStart(2, '0')}:${fecha.getMinutes().toString().padStart(2, '0')}`;
         
-        const horaFormateada = fecha.toLocaleTimeString('es-CL', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: true
-        });
+        const responsable = inventario.responsable || 'Sin asignar';
 
         // Agregar productos del inventario
         if (inventario.productos && inventario.productos.length > 0) {
-          inventario.productos.forEach((prod, idx) => {
+          inventario.productos.forEach((prod) => {
+            const stockInicial = prod.stockAnterior || 0;
+            const conteoFisico = prod.conteoFisico || 0;
+            const consumo = stockInicial - conteoFisico;
+
             excelData.push({
-              'Fecha': idx === 0 ? fechaFormateada : '',
-              'Hora': idx === 0 ? horaFormateada : '',
-              'Producto': prod.nombre || 'Desconocido',
-              'Conteo Físico': prod.conteoFisico || 0,
-              'Stock Anterior': prod.stockAnterior || 0,
-              'Diferencia': (prod.conteoFisico || 0) - (prod.stockAnterior || 0),
-              'Costo Unitario': prod.costo || 0,
-              'Valor Total': (prod.conteoFisico || 0) * (prod.costo || 0)
+              'FECHA': fechaFormateada,
+              'RESPONSABLE': responsable.toUpperCase(),
+              'PRODUCTO': (prod.nombre || 'DESCONOCIDO').toUpperCase(),
+              'STOCK INICIAL': stockInicial,
+              'CONTEO FÍSICO': conteoFisico,
+              'CONSUMO/VENTAS': consumo
             });
           });
         } else {
           excelData.push({
-            'Fecha': fechaFormateada,
-            'Hora': horaFormateada,
-            'Producto': 'Sin productos',
-            'Conteo Físico': 0,
-            'Stock Anterior': 0,
-            'Diferencia': 0,
-            'Costo Unitario': 0,
-            'Valor Total': 0
+            'FECHA': fechaFormateada,
+            'RESPONSABLE': responsable.toUpperCase(),
+            'PRODUCTO': 'SIN PRODUCTOS',
+            'STOCK INICIAL': 0,
+            'CONTEO FÍSICO': 0,
+            'CONSUMO/VENTAS': 0
           });
         }
       });
 
       // Crear workbook y worksheet
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(excelData);
-
-      // Configurar anchos de columnas
-      ws['!cols'] = [
-        { wch: 12 },  // Fecha
-        { wch: 12 },  // Hora
-        { wch: 30 },  // Producto
-        { wch: 15 },  // Conteo Físico
-        { wch: 15 },  // Stock Anterior
-        { wch: 12 },  // Diferencia
-        { wch: 15 },  // Costo Unitario
-        { wch: 15 }   // Valor Total
+      
+      // Crear fila de título
+      const wsData = [
+        ['REPORTE OPERATIVO - ROAL BURGER'],
+        [],  // Fila vacía
+        ...XLSX.utils.sheet_to_json(XLSX.utils.json_to_sheet(excelData), { header: 1 })
       ];
+      
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      // Aplicar formato a columnas de dinero
-      const range = XLSX.utils.decode_range(ws['!ref']);
-      for (let R = range.s.r + 1; R <= range.e.r; ++R) {
-        // Costo Unitario (columna G)
-        const cellG = XLSX.utils.encode_cell({ r: R, c: 6 });
-        if (ws[cellG]) {
-          ws[cellG].z = '$#,##0.00';
+      // Configurar anchos de columnas automáticos
+      const colWidths = [
+        { wch: 20 },  // FECHA
+        { wch: 25 },  // RESPONSABLE
+        { wch: 35 },  // PRODUCTO
+        { wch: 18 },  // STOCK INICIAL
+        { wch: 18 },  // CONTEO FÍSICO
+        { wch: 18 }   // CONSUMO/VENTAS
+      ];
+      ws['!cols'] = colWidths;
+
+      // Aplicar negrita a los encabezados (fila 3, porque 1 es el título y 2 está vacía)
+      const headerRow = 2;  // Índice 0-based
+      const headerCells = ['A3', 'B3', 'C3', 'D3', 'E3', 'F3'];
+      headerCells.forEach(cell => {
+        if (ws[cell]) {
+          ws[cell].s = {
+            font: { bold: true },
+            alignment: { horizontal: 'center' }
+          };
         }
-        
-        // Valor Total (columna H)
-        const cellH = XLSX.utils.encode_cell({ r: R, c: 7 });
-        if (ws[cellH]) {
-          ws[cellH].z = '$#,##0.00';
-        }
+      });
+
+      // Estilo para el título principal
+      if (ws['A1']) {
+        ws['A1'].s = {
+          font: { bold: true, sz: 14 },
+          alignment: { horizontal: 'center' }
+        };
+        // Combinar celdas del título
+        ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
       }
 
-      // Activar auto-filtros
-      ws['!autofilter'] = { ref: XLSX.utils.encode_range(range) };
+      // Activar auto-filtros en los encabezados
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      ws['!autofilter'] = { 
+        ref: XLSX.utils.encode_range({ 
+          s: { r: headerRow, c: 0 }, 
+          e: { r: range.e.r, c: 5 } 
+        }) 
+      };
 
       // Agregar worksheet al workbook
       XLSX.utils.book_append_sheet(wb, ws, 'Historial de Inventarios');
