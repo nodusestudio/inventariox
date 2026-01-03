@@ -267,18 +267,8 @@ export default function Inventory({
       costoUnitario: p.costoUnitario || 0
     }));
 
-    // Usar el responsable y proveedor del registro
-    const tempResponsible = selectedResponsible;
-    const tempProvider = selectedProvider;
-    setSelectedResponsible(historyRecord.responsable);
-    setSelectedProvider(historyRecord.proveedor);
-
-    // Generar PDF
-    const doc = generatePDF(data);
-    
-    // Restaurar valores originales
-    setSelectedResponsible(tempResponsible);
-    setSelectedProvider(tempProvider);
+    // Generar PDF con el responsable y proveedor del registro histórico
+    const doc = generatePDF(data, historyRecord.responsable, historyRecord.proveedor);
 
     // Crear nombre de archivo con fecha del registro
     const fecha = historyRecord.fecha?.toDate ? historyRecord.fecha.toDate() : new Date();
@@ -289,12 +279,12 @@ export default function Inventory({
   };
 
   // ============ GENERAR PDF DE CLASE MUNDIAL (Professional ERP Standard) ============
-  const generatePDF = (data) => {
+  const generatePDF = (data, responsable = selectedResponsible, proveedor = selectedProvider) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     
-    // Encabezado Corporativo
-    doc.setFillColor(220, 53, 69);
+    // Encabezado Corporativo - Color azul de la marca #206DDA
+    doc.setFillColor(32, 109, 218);
     doc.rect(0, 0, pageWidth, 40, 'F');
     
     const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'INVENTARIO';
@@ -323,8 +313,8 @@ export default function Inventory({
     
     doc.text(`Fecha: ${fecha}`, 14, 45);
     doc.text(`Hora: ${hora}`, 14, 52);
-    doc.text(`Responsable: ${selectedResponsible}`, 14, 59);
-    doc.text(`Proveedor: ${selectedProvider}`, 14, 66);
+    doc.text(`Responsable: ${responsable}`, 14, 59);
+    doc.text(`Proveedor: ${proveedor}`, 14, 66);
     
     // Métricas de Consumo
     const totalConsumo = data.reduce((sum, item) => 
@@ -340,7 +330,7 @@ export default function Inventory({
     doc.text(`Consumo Total: ${totalConsumo} unidades`, pageWidth - 14, 66, { align: 'right' });
     
     // Separador
-    doc.setDrawColor(220, 53, 69);
+    doc.setDrawColor(32, 109, 218);
     doc.setLineWidth(0.5);
     doc.line(14, 72, pageWidth - 14, 72);
     
@@ -364,7 +354,7 @@ export default function Inventory({
       body: tableData,
       theme: 'striped',
       headStyles: { 
-        fillColor: [220, 53, 69], // Rojo
+        fillColor: [32, 109, 218], // Azul de la marca
         textColor: 255,
         fontStyle: 'bold',
         fontSize: 8,
@@ -391,7 +381,7 @@ export default function Inventory({
         if (data.section === 'body' && data.column.index === 4) {
           const consumo = parseFloat(data.cell.text[0]);
           if (consumo > 0) {
-            data.cell.styles.textColor = [220, 53, 69]; // Rojo para consumo
+            data.cell.styles.textColor = [32, 109, 218]; // Azul para consumo
             data.cell.styles.fontStyle = 'bold';
           } else if (consumo < 0) {
             data.cell.styles.textColor = [34, 139, 34]; // Verde para excedente
@@ -416,12 +406,12 @@ export default function Inventory({
     
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 53, 69);
+    doc.setTextColor(32, 109, 218);
     doc.text('SUMATORIA TOTAL DE CONSUMO', 20, finalY + 5);
     
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(220, 53, 69);
+    doc.setTextColor(32, 109, 218);
     doc.text(`${totalConsumo} UNIDADES`, pageWidth - 20, finalY + 14, { align: 'right' });
     
     doc.setFontSize(12);
@@ -439,7 +429,7 @@ export default function Inventory({
     if (productosConConsumo.length > 0) {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(220, 53, 69);
+      doc.setTextColor(32, 109, 218);
       doc.text('DETALLE DE CONSUMO', 14, finalY);
       
       doc.setFontSize(9);
@@ -514,7 +504,7 @@ export default function Inventory({
       doc.setTextColor(100, 100, 100);
       
       // Línea superior del pie
-      doc.setDrawColor(220, 53, 69);
+      doc.setDrawColor(32, 109, 218);
       doc.setLineWidth(0.3);
       doc.line(14, doc.internal.pageSize.height - 15, pageWidth - 14, doc.internal.pageSize.height - 15);
       
