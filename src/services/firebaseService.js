@@ -75,38 +75,49 @@ export const updateProduct = async (docId, productData) => {
       throw new Error('ID del producto no válido');
     }
 
-    // Sanitizar datos antes de enviar a Firebase
-    const sanitizedData = {
-      nombre: (productData.nombre || '').toString().trim(),
-      proveedor: (productData.proveedor || '').toString().trim(),
-      unidad: (productData.unidad || '').toString().trim(),
-      costo: Number(productData.costo) || 0,
-      stockActual: Number(productData.stockActual) || 0,
-      stockMinimo: Number(productData.stockMinimo) || 0,
-      stockCompra: Number(productData.stockCompra) || 0,
-      updatedAt: Timestamp.now()
-    };
-
-    // ✅ NO validar nombre/proveedor aquí - updateProduct solo actualiza stocks existentes
-
-    // 🔥 FILTRO DE OBJETOS: Eliminar cualquier campo undefined/null antes de updateDoc
-    const cleanData = Object.fromEntries(
-      Object.entries(sanitizedData).filter(([_, v]) => v !== undefined && v !== null && v !== '')
-    );
+    // 🔥 SOLUCIÓN: Solo sanitizar y actualizar los campos que vienen en productData
+    // No establecer valores por defecto para campos que no se están actualizando
+    const sanitizedData = {};
+    
+    // Solo agregar campos que existen en productData
+    if (productData.nombre !== undefined) {
+      sanitizedData.nombre = productData.nombre.toString().trim();
+    }
+    if (productData.proveedor !== undefined) {
+      sanitizedData.proveedor = productData.proveedor.toString().trim();
+    }
+    if (productData.unidad !== undefined) {
+      sanitizedData.unidad = productData.unidad.toString().trim();
+    }
+    if (productData.costo !== undefined) {
+      sanitizedData.costo = Number(productData.costo) || 0;
+    }
+    if (productData.stockActual !== undefined) {
+      sanitizedData.stockActual = Number(productData.stockActual) || 0;
+    }
+    if (productData.stockMinimo !== undefined) {
+      sanitizedData.stockMinimo = Number(productData.stockMinimo) || 0;
+    }
+    if (productData.stockCompra !== undefined) {
+      sanitizedData.stockCompra = Number(productData.stockCompra) || 0;
+    }
+    
+    // Siempre actualizar la fecha de modificación
+    sanitizedData.updatedAt = Timestamp.now();
 
     // Verificar que haya datos válidos para actualizar
-    if (Object.keys(cleanData).length === 0) {
+    if (Object.keys(sanitizedData).length <= 1) { // Solo updatedAt
       throw new Error('No hay datos válidos para actualizar');
     }
 
     // Verificar que el ID no esté dentro del objeto de datos
-    if (cleanData.id || cleanData.docId) {
-      delete cleanData.id;
-      delete cleanData.docId;
+    if (sanitizedData.id || sanitizedData.docId) {
+      delete sanitizedData.id;
+      delete sanitizedData.docId;
     }
 
     const productRef = doc(db, 'products', docId);
-    await updateDoc(productRef, cleanData);
+    await updateDoc(productRef, sanitizedData);
   } catch (error) {
     console.error('Error updating product:', error);
     // Manejo de errores específicos de Firebase
