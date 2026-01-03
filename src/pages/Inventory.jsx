@@ -283,8 +283,8 @@ export default function Inventory({
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     
-    // Encabezado Corporativo - Color azul de la marca #206DDA
-    doc.setFillColor(32, 109, 218);
+    // Encabezado Corporativo - Color azul oscuro blue-900
+    doc.setFillColor(30, 58, 138);
     doc.rect(0, 0, pageWidth, 40, 'F');
     
     const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'INVENTARIO';
@@ -330,7 +330,7 @@ export default function Inventory({
     doc.text(`Consumo Total: ${totalConsumo} unidades`, pageWidth - 14, 66, { align: 'right' });
     
     // Separador
-    doc.setDrawColor(32, 109, 218);
+    doc.setDrawColor(30, 58, 138);
     doc.setLineWidth(0.5);
     doc.line(14, 72, pageWidth - 14, 72);
     
@@ -354,7 +354,7 @@ export default function Inventory({
       body: tableData,
       theme: 'striped',
       headStyles: { 
-        fillColor: [32, 109, 218], // Azul de la marca
+        fillColor: [30, 58, 138], // Azul oscuro blue-900
         textColor: 255,
         fontStyle: 'bold',
         fontSize: 8,
@@ -381,7 +381,7 @@ export default function Inventory({
         if (data.section === 'body' && data.column.index === 4) {
           const consumo = parseFloat(data.cell.text[0]);
           if (consumo > 0) {
-            data.cell.styles.textColor = [32, 109, 218]; // Azul para consumo
+            data.cell.styles.textColor = [30, 58, 138]; // Azul oscuro para consumo
             data.cell.styles.fontStyle = 'bold';
           } else if (consumo < 0) {
             data.cell.styles.textColor = [34, 139, 34]; // Verde para excedente
@@ -406,12 +406,12 @@ export default function Inventory({
     
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(32, 109, 218);
+    doc.setTextColor(30, 58, 138);
     doc.text('SUMATORIA TOTAL DE CONSUMO', 20, finalY + 5);
     
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(32, 109, 218);
+    doc.setTextColor(30, 58, 138);
     doc.text(`${totalConsumo} UNIDADES`, pageWidth - 20, finalY + 14, { align: 'right' });
     
     doc.setFontSize(12);
@@ -429,7 +429,7 @@ export default function Inventory({
     if (productosConConsumo.length > 0) {
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(32, 109, 218);
+      doc.setTextColor(30, 58, 138);
       doc.text('DETALLE DE CONSUMO', 14, finalY);
       
       doc.setFontSize(9);
@@ -504,7 +504,7 @@ export default function Inventory({
       doc.setTextColor(100, 100, 100);
       
       // Línea superior del pie
-      doc.setDrawColor(32, 109, 218);
+      doc.setDrawColor(30, 58, 138);
       doc.setLineWidth(0.3);
       doc.line(14, doc.internal.pageSize.height - 15, pageWidth - 14, doc.internal.pageSize.height - 15);
       
