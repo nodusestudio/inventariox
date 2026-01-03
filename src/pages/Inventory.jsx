@@ -55,6 +55,7 @@ import { addInventoryLog, getTodayInventoryLog, updateProduct, saveInventoryHist
 export default function Inventory({ 
   productsData = [], 
   providers = [], 
+  companyData = {},
   language = 'es',
   userId 
 }) {
@@ -292,14 +293,15 @@ export default function Inventory({
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
     
-    // Encabezado Corporativo - ROAL BURGER en GRANDE
+    // Encabezado Corporativo
     doc.setFillColor(220, 53, 69);
     doc.rect(0, 0, pageWidth, 40, 'F');
     
+    const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'INVENTARIO';
     doc.setFontSize(26);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(255, 255, 255);
-    doc.text('ROAL BURGER', pageWidth / 2, 15, { align: 'center' });
+    doc.text(companyName.toUpperCase(), pageWidth / 2, 15, { align: 'center' });
     
     doc.setFontSize(14);
     doc.setFont('helvetica', 'normal');
@@ -362,7 +364,7 @@ export default function Inventory({
       body: tableData,
       theme: 'striped',
       headStyles: { 
-        fillColor: [220, 53, 69], // Rojo ROAL BURGER
+        fillColor: [220, 53, 69], // Rojo
         textColor: 255,
         fontStyle: 'bold',
         fontSize: 8,
@@ -518,7 +520,7 @@ export default function Inventory({
       
       // Texto del pie
       doc.text(
-        `Generado por InventarioX - ROAL BURGER`,
+        `Generado por InventarioX`,
         14,
         doc.internal.pageSize.height - 10
       );
@@ -639,12 +641,8 @@ export default function Inventory({
       console.log('✅ 2/3 - Historial guardado en inventory_history (trazabilidad)');
       console.log('✅ 3/3 - Stock maestro (products) actualizado con Stock Físico');
 
-      // Generar y descargar PDF (operación asíncrona)
-      console.log('Generando PDF...');
-      const doc = generatePDF(inventoryData);
-      const fileName = `Reporte_Inventario_${proveedor}_${new Date().toISOString().split('T')[0]}.pdf`;
-      doc.save(fileName);
-      console.log('✅ PDF generado:', fileName);
+      // El PDF se generará solo cuando el usuario lo descargue desde el historial
+      console.log('✅ Inventario guardado - PDF disponible en historial');
 
       // RESET COMPLETO del formulario para el siguiente proveedor
       setSelectedProvider('');
@@ -938,7 +936,7 @@ export default function Inventory({
                 <FileCheck className="w-5 h-5" />
                 {isProcessing 
                   ? 'Procesando...' 
-                  : 'Finalizar y Generar Reporte'
+                  : 'Guardar Inventario'
                 }
               </button>
             </div>
@@ -1144,7 +1142,7 @@ export default function Inventory({
                           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all shadow-md hover:shadow-lg"
                         >
                           <Download className="w-4 h-4" />
-                          Re-descargar PDF
+                          Descargar Reporte
                         </button>
                       </td>
                     </tr>
