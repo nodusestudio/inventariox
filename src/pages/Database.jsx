@@ -402,12 +402,11 @@ export default function DatabasePage({
       XLSX.utils.book_append_sheet(wb, ws, 'Historial de Pedidos');
 
       // Descargar archivo con nombre personalizado
-      const fecha = new Date().toISOString().split('T')[0];
-      const año = new Date().getFullYear();
-      XLSX.writeFile(wb, `Historial_Pedidos_RoalBurger_${año}.xlsx`);
+      const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      XLSX.writeFile(wb, `Historial_Pedidos_${fecha}.xlsx`);
 
       toast.dismiss(loadingToast);
-      toast.success(`✓ Historial de Pedidos descargado exitosamente en Excel (${historial.length} registros)`);
+      toast.success(`✓ Historial de pedidos descargado exitosamente (${historial.length} registros)`);
     } catch (error) {
       console.error('Error exportando historial de pedidos:', error);
       toast.error('❌ Error al generar el reporte');
@@ -428,17 +427,22 @@ export default function DatabasePage({
       }
 
       // Preparar datos para Excel
-      const excelData = productsData.map(product => ({
-        'PRODUCTO': (product.name || 'SIN NOMBRE').toUpperCase(),
-        'CATEGORÍA': (product.category || 'SIN CATEGORÍA').toUpperCase(),
-        'PROVEEDOR': (product.proveedor || 'SIN PROVEEDOR').toUpperCase(),
-        'STOCK ACTUAL': product.stock || 0,
-        'STOCK MÍNIMO': product.stockMinimo || 0,
-        'COSTO': product.costo || 0,
-        'PRECIO': product.precio || 0,
-        'VALOR TOTAL': (product.stock || 0) * (product.costo || 0),
-        'ESTADO': (product.stock || 0) <= (product.stockMinimo || 0) ? 'BAJO' : 'OK'
-      }));
+      const excelData = productsData.map(product => {
+        // Verificar que el producto tenga nombre
+        const nombreProducto = product.nombre || product.name || 'SIN NOMBRE';
+        
+        return {
+          'PRODUCTO': nombreProducto.toUpperCase(),
+          'CATEGORÍA': (product.category || product.categoria || 'SIN CATEGORÍA').toUpperCase(),
+          'PROVEEDOR': (product.proveedor || 'SIN PROVEEDOR').toUpperCase(),
+          'STOCK ACTUAL': product.stock || 0,
+          'STOCK MÍNIMO': product.stockMinimo || 0,
+          'COSTO': product.costo || 0,
+          'PRECIO': product.precio || 0,
+          'VALOR TOTAL': (product.stock || 0) * (product.costo || 0),
+          'ESTADO': (product.stock || 0) <= (product.stockMinimo || 0) ? 'BAJO' : 'OK'
+        };
+      });
 
       // Crear workbook
       const wb = XLSX.utils.book_new();
@@ -451,8 +455,9 @@ export default function DatabasePage({
       });
       
       // Crear datos con fila de título
+      const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'CONTROL DE EXISTENCIAS';
       const wsData = [
-        [`ROAL BURGER - CONTROL DE EXISTENCIAS TOTAL - ${fechaDescarga}`],
+        [`${companyName.toUpperCase()} - CONTROL DE EXISTENCIAS TOTAL - ${fechaDescarga}`],
         [],  // Fila vacía
         ...XLSX.utils.sheet_to_json(XLSX.utils.json_to_sheet(excelData), { header: 1 })
       ];
@@ -530,10 +535,12 @@ export default function DatabasePage({
 
       // Descargar archivo
       const año = new Date().getFullYear();
-      XLSX.writeFile(wb, `Inventario_RoalBurger_${año}.xlsx`);
+      const mes = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const dia = new Date().getDate().toString().padStart(2, '0');
+      XLSX.writeFile(wb, `Inventario_${año}${mes}${dia}.xlsx`);
 
       toast.dismiss(loadingToast);
-      toast.success(`✓ Inventario descargado exitosamente en Excel (${productsData.length} productos)`);
+      toast.success(`✓ Inventario descargado exitosamente (${productsData.length} productos)`);
     } catch (error) {
       console.error('Error exportando inventario:', error);
       toast.error('❌ Error al generar el reporte de inventario');
@@ -587,8 +594,8 @@ export default function DatabasePage({
       XLSX.utils.book_append_sheet(wb, ws, 'Proveedores');
 
       // Descargar archivo
-      const año = new Date().getFullYear();
-      XLSX.writeFile(wb, `Proveedores_RoalBurger_${año}.xlsx`);
+      const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      XLSX.writeFile(wb, `Proveedores_${fecha}.xlsx`);
 
       toast.dismiss(loadingToast);
       toast.success(`✓ Proveedores descargados exitosamente en Excel (${providersData.length} proveedores)`);
@@ -659,8 +666,9 @@ export default function DatabasePage({
       const wb = XLSX.utils.book_new();
       
       // Crear fila de título
+      const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'REPORTE OPERATIVO';
       const wsData = [
-        ['REPORTE OPERATIVO - ROAL BURGER'],
+        [`${companyName.toUpperCase()} - REPORTE OPERATIVO`],
         [],  // Fila vacía
         ...XLSX.utils.sheet_to_json(XLSX.utils.json_to_sheet(excelData), { header: 1 })
       ];
@@ -713,12 +721,11 @@ export default function DatabasePage({
       XLSX.utils.book_append_sheet(wb, ws, 'Historial de Inventarios');
 
       // Descargar archivo con nombre personalizado
-      const fecha = new Date().toISOString().split('T')[0];
-      const año = new Date().getFullYear();
-      XLSX.writeFile(wb, `Historial_Inventarios_RoalBurger_${año}.xlsx`);
+      const fecha = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      XLSX.writeFile(wb, `Historial_Inventarios_${fecha}.xlsx`);
 
       toast.dismiss(loadingToast);
-      toast.success(`✓ Historial de Inventarios descargado exitosamente en Excel (${historial.length} registros)`);
+      toast.success(`✓ Historial descargado exitosamente (${historial.length} registros)`);
     } catch (error) {
       console.error('Error exportando historial de inventarios:', error);
       toast.error('❌ Error al generar el reporte');
@@ -739,6 +746,9 @@ export default function DatabasePage({
     } else if (downloadOption === 'inventario') {
       // Inventario en Excel
       exportInventarioToExcel();
+    } else if (downloadOption === 'productos') {
+      // Productos en CSV
+      handleExportProducts();
     } else if (downloadOption === 'proveedores') {
       // Proveedores en Excel
       exportProveedoresToExcel();
@@ -1040,6 +1050,7 @@ export default function DatabasePage({
                 className="w-full px-4 py-3 rounded-lg border-2 border-gray-600 light-mode:border-gray-300 bg-[#111827] light-mode:bg-white text-white light-mode:text-gray-900 font-semibold appearance-none cursor-pointer transition-all hover:border-[#206DDA]/50 focus:outline-none focus:border-[#206DDA]"
               >
                 <option value="inventario">📦 Descargar Inventario (.xlsx)</option>
+                <option value="productos">🏷️ Descargar Productos (.csv)</option>
                 <option value="proveedores">👥 Descargar Proveedores (.xlsx)</option>
                 <option value="completo">💾 Backup Completo (.json)</option>
                 <option value="historial-pedidos">📊 Historial de Pedidos Recibidos (.xlsx)</option>

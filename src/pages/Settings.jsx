@@ -445,7 +445,7 @@ export default function Settings({
                       value={formData.nombre || ''}
                       onChange={handleInputChange}
                       className="w-full px-4 py-3 bg-[#111827] light-mode:bg-gray-50 border-2 border-gray-600 light-mode:border-gray-300 rounded-lg text-white light-mode:text-gray-900 placeholder-gray-500 focus:border-[#206DDA] focus:outline-none focus:ring-2 focus:ring-[#206DDA]/30 transition-all"
-                      placeholder="Ej: ROAL BURGER"
+                      placeholder="Ej: MI EMPRESA"
                     />
                   </div>
 

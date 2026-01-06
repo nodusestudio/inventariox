@@ -5,7 +5,7 @@ import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-export default function Movements({ language = 'es', user }) {
+export default function Movements({ companyData = {}, language = 'es', user }) {
   const [movements, setMovements] = useState([]);
   const [inventoryHistory, setInventoryHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -192,14 +192,15 @@ export default function Movements({ language = 'es', user }) {
       const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.width;
       
-      // Encabezado Corporativo - ROAL BURGER
+      // Encabezado Corporativo
       doc.setFillColor(220, 53, 69);
       doc.rect(0, 0, pageWidth, 40, 'F');
       
+      const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'MOVIMIENTOS';
       doc.setFontSize(26);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(255, 255, 255);
-      doc.text('ROAL BURGER', pageWidth / 2, 15, { align: 'center' });
+      doc.text(companyName.toUpperCase(), pageWidth / 2, 15, { align: 'center' });
       
       doc.setFontSize(14);
       doc.setFont('helvetica', 'normal');

@@ -143,6 +143,7 @@ export default function App() {
     ),
     movements: (
       <Movements
+        companyData={companyData}
         language={language}
         user={user}
       />
@@ -219,6 +220,7 @@ export default function App() {
       <Inventory
         productsData={productsData}
         providers={providersData}
+        companyData={companyData}
         language={language}
         userId={user.uid}
       />

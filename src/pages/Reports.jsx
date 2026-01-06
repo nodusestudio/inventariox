@@ -7,7 +7,7 @@ import { getMermas } from '../services/firebaseService';
 // CLP formatter without decimals
 const formatCLP = (value) => new Intl.NumberFormat('es-CL', { maximumFractionDigits: 0 }).format(value || 0);
 
-export default function Reports({ ordersData = [], providersData = [], productsData = [], companyData = { nombreEmpresa: 'ROAL BURGER' }, language = 'es', user }) {
+export default function Reports({ ordersData = [], providersData = [], productsData = [], companyData = { nombreEmpresa: 'MI EMPRESA' }, language = 'es', user }) {
   const today = new Date();
   const [month, setMonth] = useState(String(today.getMonth() + 1).padStart(2, '0'));
   const [year, setYear] = useState(String(today.getFullYear()));
@@ -130,7 +130,7 @@ export default function Reports({ ordersData = [], providersData = [], productsD
   const handleDownloadPDF = async () => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const genDate = new Date();
-    const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'ROAL BURGER';
+    const companyName = companyData?.nombre || companyData?.nombreEmpresa || 'MI EMPRESA';
     const title = `REPORTE MENSUAL DE INVENTARIO - ${companyName}`;
     const period = `Periodo: ${month}/${year}`;
     const genText = `Generado: ${genDate.toLocaleDateString('es-CL')} ${genDate.toLocaleTimeString('es-CL')}`;
